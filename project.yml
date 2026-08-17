@@ -27,6 +27,9 @@ targets:
         optional: true
     dependencies:
       - target: OmniChat
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   OmniChat:
     build:
