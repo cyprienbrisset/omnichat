@@ -1,0 +1,64 @@
+import Foundation
+
+public actor OmniRouteClient {
+    private nonisolated let profile: EndpointProfile
+    private nonisolated let credentialStore: CredentialStore
+    private nonisolated let session: URLSession
+    private nonisolated let retryPolicy: RetryPolicy
+
+    public init(
+        profile: EndpointProfile,
+        credentialStore: CredentialStore,
+        session: URLSession = .shared,
+        retryPolicy: RetryPolicy = RetryPolicy()
+    ) {
+        self.profile = profile
+        self.credentialStore = credentialStore
+        self.session = session
+        self.retryPolicy = retryPolicy
+    }
+
+    private nonisolated func authorizedRequest(path: String) throws -> URLRequest {
+        var request = URLRequest(url: profile.baseURL.appendingPathComponent(path))
+        if let apiKey = try credentialStore.apiKey(for: profile.id) {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
+    public func listModels() async throws -> [ModelInfo] {
+        var attempt = 1
+        while true {
+            do {
+                let request = try authorizedRequest(path: "models")
+                let (data, response) = try await session.data(for: request)
+                _ = try Self.requireSuccess(response)
+                return try JSONDecoder().decode(ModelListResponse.self, from: data).data
+            } catch {
+                let mapped = Self.mapNetworkingError(error)
+                guard retryPolicy.shouldRetry(attempt: attempt, error: mapped) else { throw mapped }
+                try await Task.sleep(for: .seconds(retryPolicy.delay(forAttempt: attempt, jitter: 0)))
+                attempt += 1
+            }
+        }
+    }
+
+    static func requireSuccess(_ response: URLResponse) throws -> HTTPURLResponse {
+        guard let http = response as? HTTPURLResponse else {
+            throw OmniRouteError.invalidResponse(statusCode: -1)
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw OmniRouteError.from(
+                httpStatusCode: http.statusCode,
+                retryAfterHeader: http.value(forHTTPHeaderField: "Retry-After")
+            )
+        }
+        return http
+    }
+
+    static func mapNetworkingError(_ error: Error) -> OmniRouteError {
+        if let omni = error as? OmniRouteError { return omni }
+        if let urlError = error as? URLError { return .from(urlError: urlError) }
+        return .unknown(description: "\(error)")
+    }
+}
