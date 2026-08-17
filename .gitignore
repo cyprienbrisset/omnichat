@@ -1,0 +1,2 @@
+# Exception locale à ~/.gitignore_global : ce projet versionne son README.
+!README.md
