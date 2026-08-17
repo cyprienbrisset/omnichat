@@ -1,0 +1,37 @@
+name: OmniChat
+options:
+  bundleIdPrefix: online.omniroute.omnichat
+  deploymentTarget:
+    macOS: "26.0"
+packages:
+  OmniRouteKit:
+    path: Packages/OmniRouteKit
+targets:
+  OmniChat:
+    type: application
+    platform: macOS
+    sources: [OmniChat]
+    dependencies:
+      - package: OmniRouteKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: online.omniroute.omnichat
+        MARKETING_VERSION: "0.1.0"
+        ENABLE_HARDENED_RUNTIME: YES
+        GENERATE_INFOPLIST_FILE: YES
+  OmniChatTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: OmniChatTests
+        optional: true
+    dependencies:
+      - target: OmniChat
+schemes:
+  OmniChat:
+    build:
+      targets:
+        OmniChat: all
+        OmniChatTests: [test]
+    test:
+      targets: [OmniChatTests]

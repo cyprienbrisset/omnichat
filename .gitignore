@@ -3,3 +3,9 @@
 
 # Scratch workspace for Subagent-Driven Development (ledgers, briefs, reports)
 .superpowers/
+
+# Xcode / SwiftPM build artifacts
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj/
