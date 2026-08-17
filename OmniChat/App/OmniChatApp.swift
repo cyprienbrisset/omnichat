@@ -1,11 +1,36 @@
 import SwiftUI
+import SwiftData
 
 @main
 struct OmniChatApp: App {
+    let modelContainer: ModelContainer
+    @State private var appEnvironment = AppEnvironment()
+
+    init() {
+        do {
+            modelContainer = try ModelContainer(for: Conversation.self, Message.self, StoredEndpointProfile.self)
+        } catch {
+            fatalError("Impossible d'initialiser SwiftData: \(error)")
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
-            Text("OmniChat — socle en construction")
-                .padding()
+            ContentView()
+                .environment(appEnvironment)
         }
+        .modelContainer(modelContainer)
+
+        MenuBarExtra("OmniChat", systemImage: "bubble.left.and.bubble.right") {
+            MenuBarChatView()
+                .environment(appEnvironment)
+        }
+        .modelContainer(modelContainer)
+
+        Settings {
+            SettingsView()
+                .environment(appEnvironment)
+        }
+        .modelContainer(modelContainer)
     }
 }

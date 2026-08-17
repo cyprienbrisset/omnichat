@@ -5,9 +5,11 @@ App macOS native (Swift + SwiftUI, macOS 26+) pour exploiter
 open-source agrégeant 339 fournisseurs de modèles derrière une API
 compatible OpenAI.
 
-> **Statut : en conception.** Le code n'existe pas encore — voir le spec
-> ci-dessous pour l'état d'avancement réel. Cette section sera mise à
-> jour à chaque fonctionnalité livrée.
+> **Statut : socle + chat fonctionnels.** Chat multi-modèles en streaming,
+> gestion d'erreurs (auth/rate limit/réseau/stream interrompu), persistance
+> locale (SwiftData), clé API dans le Keychain, menu bar + fenêtre
+> principale. Médias, RAG, MCP, A2A, OCR et traduction audio ne sont pas
+> encore implémentés (voir le spec pour le périmètre complet).
 
 ## Ce que fait OmniChat
 
@@ -31,11 +33,28 @@ conception :
 
 ## Build & lancement
 
-À documenter dès que le projet Xcode existe (commande de build, version
-macOS minimale requise, dépendances).
+Prérequis : Xcode récent, [XcodeGen](https://github.com/yonaskolb/XcodeGen), macOS 26+.
+
+```bash
+xcodegen generate
+open OmniChat.xcodeproj
+```
+
+Lancer les tests du socle réseau (rapide, sans Xcode) :
+
+```bash
+cd Packages/OmniRouteKit && swift test
+```
+
+Lancer tous les tests (kit + app) :
+
+```bash
+xcodebuild test -project OmniChat.xcodeproj -scheme OmniChat -destination 'platform=macOS'
+```
 
 ## Configuration
 
-À documenter dès que l'écran de réglages existe : comment déclarer un
-`EndpointProfile` (URL OmniRoute locale ou distante) et où renseigner la
-clé API (stockée dans le Keychain macOS, jamais en clair).
+Au premier lancement, ouvre les réglages de l'app (menu OmniChat > Réglages)
+pour renseigner l'URL de ton instance OmniRoute (`http://localhost:20128/v1`
+par défaut, ou une instance distante) et ta clé API. La clé est stockée dans
+le Keychain macOS, jamais en clair.
