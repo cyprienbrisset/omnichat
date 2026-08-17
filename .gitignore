@@ -1,2 +1,5 @@
 # Exception locale à ~/.gitignore_global : ce projet versionne son README.
 !README.md
+
+# Scratch workspace for Subagent-Driven Development (ledgers, briefs, reports)
+.superpowers/
