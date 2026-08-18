@@ -20,9 +20,13 @@ struct ConversationRow: View {
                         .font(OmniTheme.mono(9))
                         .foregroundStyle(OmniTheme.warning)
                 } else {
-                    Text(conversation.createdAt, style: .relative)
-                        .font(OmniTheme.mono(9))
-                        .foregroundStyle(OmniTheme.inkSoft)
+                    HStack(spacing: 6) {
+                        Text(conversation.defaultModelID)
+                            .foregroundStyle(OmniTheme.accent)
+                        Text(conversation.createdAt.formatted(date: .omitted, time: .shortened))
+                            .foregroundStyle(OmniTheme.inkSoft)
+                    }
+                    .font(OmniTheme.mono(9, weight: .medium))
                 }
             }
             .padding(.vertical, 8)

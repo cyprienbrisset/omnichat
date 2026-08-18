@@ -67,23 +67,37 @@ struct ChatView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 4) {
-                OmniTheme.label("Conversation", size: 10, color: OmniTheme.inkSoft)
-                Text(conversation.title)
-                    .font(OmniTheme.serif(24, weight: .semibold))
-                    .foregroundStyle(OmniTheme.ink)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("OmniChat — \(conversation.title)")
+                    .lineLimit(1)
+                Spacer(minLength: 12)
+                Text("\(Date().formatted(.dateTime.day().month(.wide).year())) · model: \(conversation.defaultModelID)")
                     .lineLimit(1)
             }
-            Spacer()
-            if let strategy = conversation.telemetryTotals.lastRoutingStrategy
-                ?? conversation.telemetryTotals.lastRoutingProvider {
-                RoutingBadge(totals: conversation.telemetryTotals, fallbackLabel: strategy)
+            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+            .tracking(1.6)
+            .foregroundStyle(OmniTheme.inkSoft)
+
+            Rectangle().fill(OmniTheme.ink.opacity(0.5)).frame(height: 1).padding(.top, 9)
+            Rectangle().fill(OmniTheme.ink.opacity(0.5)).frame(height: 1).padding(.top, 3)
+
+            HStack(alignment: .lastTextBaseline) {
+                Text(conversation.title)
+                    .font(OmniTheme.serif(30, weight: .semibold))
+                    .foregroundStyle(OmniTheme.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 12)
+                if let strategy = conversation.telemetryTotals.lastRoutingStrategy
+                    ?? conversation.telemetryTotals.lastRoutingProvider {
+                    RoutingBadge(totals: conversation.telemetryTotals, fallbackLabel: strategy)
+                }
             }
+            .padding(.top, 16)
+            .padding(.bottom, 14)
         }
         .padding(.horizontal, 24)
-        .padding(.top, 20)
-        .padding(.bottom, 14)
+        .padding(.top, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(OmniTheme.paper)
         .overlay(alignment: .bottom) {

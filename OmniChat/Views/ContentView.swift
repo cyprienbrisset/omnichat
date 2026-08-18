@@ -40,6 +40,7 @@ struct ContentView: View {
                 RailView(
                     mode: Binding(get: { sidebarMode }, set: { sidebarMode = $0; showingGallery = false }),
                     isGallerySelected: showingGallery,
+                    catalogSummary: appEnvironment.catalogSummary,
                     onNewConversation: createConversation,
                     onSelectGallery: { showingGallery = true }
                 )
@@ -130,8 +131,20 @@ struct ContentView: View {
                 Spacer()
             } else {
                 List(selection: $selectedConversation) {
-                    ForEach(visibleConversations) { conversation in
-                        row(for: conversation)
+                    if sidebarMode == .conversations {
+                        ForEach(dateSections(of: visibleConversations), id: \.label) { section in
+                            Section {
+                                ForEach(section.conversations) { conversation in
+                                    row(for: conversation)
+                                }
+                            } header: {
+                                OmniTheme.label(section.label, size: 9, color: OmniTheme.inkSoft)
+                            }
+                        }
+                    } else {
+                        ForEach(visibleConversations) { conversation in
+                            row(for: conversation)
+                        }
                     }
                 }
                 .listStyle(.plain)
@@ -228,6 +241,35 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    private struct DateSection {
+        let label: String
+        let conversations: [Conversation]
+    }
+
+    /// Groups by real `createdAt` day — "Aujourd'hui"/"Hier"/an explicit
+    /// date beyond that — relying on the incoming list already being sorted
+    /// newest-first (the `@Query` sort), so same-day items stay contiguous.
+    private func dateSections(of items: [Conversation]) -> [DateSection] {
+        let calendar = Calendar.current
+        var sections: [DateSection] = []
+        for conversation in items {
+            let label: String
+            if calendar.isDateInToday(conversation.createdAt) {
+                label = "Aujourd’hui"
+            } else if calendar.isDateInYesterday(conversation.createdAt) {
+                label = "Hier"
+            } else {
+                label = conversation.createdAt.formatted(.dateTime.day().month(.wide))
+            }
+            if let last = sections.last, last.label == label {
+                sections[sections.count - 1] = DateSection(label: label, conversations: last.conversations + [conversation])
+            } else {
+                sections.append(DateSection(label: label, conversations: [conversation]))
+            }
+        }
+        return sections
     }
 
     private func daysRemainingInTrash(_ conversation: Conversation) -> Int? {

@@ -19,6 +19,7 @@ struct OmniChatApp: App {
 
         let environment = appEnvironment
         Task { await environment.refreshManagementAccess() }
+        Task { await environment.refreshCatalogSummary() }
     }
 
     var body: some Scene {

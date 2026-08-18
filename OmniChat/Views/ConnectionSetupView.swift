@@ -257,6 +257,7 @@ struct ConnectionSetupView: View {
             let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
             let providerCount = Set(models.compactMap(\.ownedBy)).count
             testState = .success(report: ServerReport(modelCount: models.count, providerCount: providerCount, latencyMs: elapsedMs))
+            appEnvironment.updateCatalogSummary(modelCount: models.count, providerCount: providerCount)
         } catch let error as OmniRouteError {
             testState = .failure(error.userMessage)
         } catch {

@@ -5,6 +5,7 @@ import SwiftUI
 struct RailView: View {
     @Binding var mode: SidebarMode
     let isGallerySelected: Bool
+    let catalogSummary: CatalogSummary?
     let onNewConversation: () -> Void
     let onSelectGallery: () -> Void
 
@@ -52,6 +53,18 @@ struct RailView: View {
             }
             .buttonStyle(.plain)
             .help("Galerie")
+
+            Spacer()
+
+            if let catalogSummary {
+                Text("omniroute · \(catalogSummary.modelCount) modèles")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .tracking(2)
+                    .foregroundStyle(OmniTheme.railText.opacity(0.42))
+                    .fixedSize()
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 20)
+            }
 
             Spacer()
 

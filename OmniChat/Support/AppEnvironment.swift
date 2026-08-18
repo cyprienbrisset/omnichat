@@ -12,12 +12,22 @@ enum ManagementAccessState: Equatable {
     case unavailable
 }
 
+/// A real, measured snapshot of the connected server's catalog — never a
+/// placeholder. `providerCount` is the number of distinct `owned_by` values
+/// across `listModels()`, since `/v1/models` doesn't expose a proper
+/// provider list without management access.
+struct CatalogSummary: Equatable {
+    let modelCount: Int
+    let providerCount: Int
+}
+
 @Observable
 final class AppEnvironment {
     var activeProfile: EndpointProfile
     let credentialStore: CredentialStore
     let diagnosticLogger: DiagnosticLogger
     private(set) var managementAccessState: ManagementAccessState = .unknown
+    private(set) var catalogSummary: CatalogSummary?
 
     var themePreference: ThemePreference {
         didSet {
@@ -85,5 +95,21 @@ final class AppEnvironment {
         let client = OmniRouteClient(profile: activeProfile, credentialStore: credentialStore)
         let hasAccess = await client.hasManagementAccess()
         managementAccessState = hasAccess ? .available : .unavailable
+    }
+
+    /// Re-fetches the real model catalog so the rail's summary label
+    /// reflects the actually-connected server rather than nothing at all.
+    /// Silently leaves `catalogSummary` as-is on failure — this is a
+    /// decorative refresh, not something that should surface an error banner.
+    @MainActor
+    func refreshCatalogSummary() async {
+        let client = OmniRouteClient(profile: activeProfile, credentialStore: credentialStore)
+        guard let models = try? await client.listModels() else { return }
+        let providerCount = Set(models.compactMap(\.ownedBy)).count
+        catalogSummary = CatalogSummary(modelCount: models.count, providerCount: providerCount)
+    }
+
+    func updateCatalogSummary(modelCount: Int, providerCount: Int) {
+        catalogSummary = CatalogSummary(modelCount: modelCount, providerCount: providerCount)
     }
 }
