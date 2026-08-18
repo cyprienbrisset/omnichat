@@ -52,6 +52,21 @@ Lancer tous les tests (kit + app) :
 xcodebuild test -project OmniChat.xcodeproj -scheme OmniChat -destination 'platform=macOS'
 ```
 
+**Signature de code locale requise.** L'app utilise le trousseau à protection de
+données (`kSecUseDataProtectionKeychain`) pour stocker la clé API, ce qui
+nécessite une signature réelle (pas seulement ad-hoc). `project.yml` configure
+`CODE_SIGN_STYLE: Automatic` sans figer d'équipe Apple Developer (pour rester
+portable entre machines/CI). Avant de builder ou tester, fournis ton propre
+identifiant d'équipe :
+
+```bash
+xcodebuild build DEVELOPMENT_TEAM=TONIDENTIFIANT ...
+```
+
+ou renseigne l'équipe dans Xcode (Signing & Capabilities du target `OmniChat`
+et `OmniChatTests`) après `open OmniChat.xcodeproj` — Xcode s'en souviendra
+localement sans modifier `project.yml`.
+
 ## Configuration
 
 Au premier lancement, ouvre les réglages de l'app (menu OmniChat > Réglages)
