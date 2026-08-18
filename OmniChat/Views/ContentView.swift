@@ -37,6 +37,7 @@ struct ContentView: View {
     @Query(sort: \Conversation.createdAt, order: .reverse) private var conversations: [Conversation]
     @State private var selectedConversation: Conversation?
     @State private var sidebarMode: SidebarMode = .conversations
+    @State private var showingGallery = false
     @State private var conversationPendingPermanentDeletion: Conversation?
     @State private var conversationPendingRename: Conversation?
     @State private var renameText = ""
@@ -65,12 +66,19 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             HStack(spacing: 0) {
-                RailView(mode: $sidebarMode, onNewConversation: createConversation)
+                RailView(
+                    mode: Binding(get: { sidebarMode }, set: { sidebarMode = $0; showingGallery = false }),
+                    isGallerySelected: showingGallery,
+                    onNewConversation: createConversation,
+                    onSelectGallery: { showingGallery = true }
+                )
                 registerPanel
             }
             .navigationSplitViewColumnWidth(min: 300, ideal: 360, max: 520)
         } detail: {
-            if let selectedConversation {
+            if showingGallery {
+                GalleryView()
+            } else if let selectedConversation {
                 ChatView(conversation: selectedConversation)
             } else {
                 emptyState
@@ -81,6 +89,9 @@ struct ContentView: View {
             if selectedConversation == nil {
                 selectedConversation = activeConversations.first
             }
+        }
+        .onChange(of: selectedConversation) { _, newValue in
+            if newValue != nil { showingGallery = false }
         }
         .alert(
             "Supprimer définitivement ?",
@@ -317,7 +328,9 @@ struct ContentView: View {
 /// navigation action, sidebar mode switcher, and settings entry point.
 private struct RailView: View {
     @Binding var mode: SidebarMode
+    let isGallerySelected: Bool
     let onNewConversation: () -> Void
+    let onSelectGallery: () -> Void
 
     var body: some View {
         VStack(spacing: 18) {
@@ -350,11 +363,19 @@ private struct RailView: View {
                 } label: {
                     Image(systemName: candidate.systemImage)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(mode == candidate ? OmniTheme.accent : OmniTheme.railText.opacity(0.7))
+                        .foregroundStyle(!isGallerySelected && mode == candidate ? OmniTheme.accent : OmniTheme.railText.opacity(0.7))
                 }
                 .buttonStyle(.plain)
                 .help(candidate.title)
             }
+
+            Button(action: onSelectGallery) {
+                Image(systemName: "photo.on.rectangle")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isGallerySelected ? OmniTheme.accent : OmniTheme.railText.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+            .help("Galerie")
 
             Spacer()
 
