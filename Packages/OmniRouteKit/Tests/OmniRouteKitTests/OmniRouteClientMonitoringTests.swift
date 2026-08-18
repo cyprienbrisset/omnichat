@@ -2,13 +2,18 @@ import XCTest
 @testable import OmniRouteKit
 
 final class OmniRouteClientMonitoringTests: XCTestCase {
-    func test_fetchMonitoringHealth_success_decodesDocumentedFields() async throws {
+    func test_fetchMonitoringHealth_success_decodesNestedProviderSummary() async throws {
         let profile = EndpointProfile(id: UUID(), name: "Test", baseURL: URL(string: "https://omniroute.online/v1")!)
         let store = InMemoryCredentialStore()
         var capturedURL: URL?
         MockURLProtocol.requestHandler = { request in
             capturedURL = request.url
-            let json = #"{"catalogCount":340,"configuredCount":210,"activeCount":198,"monitoredCount":205}"#
+            // Shape confirmed against a live OmniRoute 3.8.49 instance — the
+            // counts live under `providerSummary`, not top-level, alongside a
+            // much larger process-health payload this app ignores.
+            let json = #"""
+            {"status":"healthy","version":"3.8.49","providerSummary":{"catalogCount":340,"configuredCount":210,"activeCount":198,"monitoredCount":205}}
+            """#
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, Data(json.utf8))
         }

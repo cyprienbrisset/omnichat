@@ -99,6 +99,15 @@ réponse `/api/memory` n'étant pas documentée avec certitude, le parsing
 essaie plusieurs formes plausibles (tableau nu, `{data:[...]}`,
 `{memories:[...]}`) avant d'échouer proprement.
 
+L'indicateur de santé (`/api/monitoring/health`) et le navigateur MCP ont
+été vérifiés contre une instance OmniRoute réelle et corrigés en
+conséquence : les compteurs de fournisseurs vivent sous `providerSummary`
+dans une réponse de santé processus beaucoup plus large que ce que la
+référence d'API laissait supposer, et les erreurs `.unknown` affichent
+maintenant le vrai message de diagnostic plutôt qu'un texte générique —
+sinon des messages comme celui du blocage MCP ci-dessous n'auraient jamais
+été visibles.
+
 ## Serveur MCP (API de gestion)
 
 Icône dédiée du rail ouvrant un navigateur du serveur MCP embarqué
@@ -122,6 +131,16 @@ compatibilité OpenAI annoncée, donc afficher une carte d'appel en direct
 dans le fil serait fabriquer une interaction qui n'a pas lieu. Un
 écran de permissions par portée n'aurait de sens qu'une fois cette boucle
 réellement construite et confirmée contre un serveur accessible.
+
+**Confirmé empiriquement contre une instance OmniRoute réelle (3.8.49) :**
+tous les `/api/mcp/*` renvoient `403 {"error":{"code":"LOCAL_ONLY",...}}`
+dès qu'on les appelle depuis ailleurs que la machine qui héberge OmniRoute
+elle-même — quels que soient les droits de la clé. Pour une instance
+auto-hébergée distante (le cas d'usage principal de cette app), ce
+navigateur MCP affichera donc toujours cette erreur, jamais une vraie
+donnée. L'app détecte ce code précis et affiche le vrai message serveur
+plutôt qu'un « Clé API invalide » trompeur (qui serait la lecture par
+défaut d'un 403 générique).
 
 ## Recherche locale (RAG sur l'historique)
 

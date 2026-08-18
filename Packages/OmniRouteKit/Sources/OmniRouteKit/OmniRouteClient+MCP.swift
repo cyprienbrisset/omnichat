@@ -1,5 +1,12 @@
 import Foundation
 
+/// The server's real JSON error envelope, confirmed empirically against a
+/// live OmniRoute 3.8.49 instance: `{"error":{"code","message",...}}`.
+private struct MCPServerErrorEnvelope: Decodable {
+    struct Body: Decodable { let code: String; let message: String }
+    let error: Body
+}
+
 extension OmniRouteClient {
     /// Lists the embedded MCP server's scoped tools. Requires management
     /// scope — callers should check `hasManagementAccess()` first rather
@@ -10,6 +17,7 @@ extension OmniRouteClient {
             do {
                 let request = try authorizedManagementRequest(path: "api/mcp/tools")
                 let (data, response) = try await session.data(for: request)
+                try Self.throwIfLocalOnly(data: data, response: response)
                 _ = try Self.requireSuccess(response)
                 do {
                     return try parseMCPToolListResponse(data)
@@ -60,6 +68,7 @@ extension OmniRouteClient {
                     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
                 }
                 let (data, response) = try await session.data(for: request)
+                try Self.throwIfLocalOnly(data: data, response: response)
                 _ = try Self.requireSuccess(response)
                 do {
                     return try parseMCPAuditListResponse(data)
@@ -81,6 +90,7 @@ extension OmniRouteClient {
             do {
                 let request = try authorizedManagementRequest(path: path)
                 let (data, response) = try await session.data(for: request)
+                try Self.throwIfLocalOnly(data: data, response: response)
                 _ = try Self.requireSuccess(response)
                 do {
                     return try parseMCPRawSnapshot(data)
@@ -94,5 +104,23 @@ extension OmniRouteClient {
                 attempt += 1
             }
         }
+    }
+
+    /// Confirmed empirically against a live OmniRoute instance: every
+    /// `/api/mcp/*` route returns `403 {"error":{"code":"LOCAL_ONLY",...}}`
+    /// when reached from anywhere but the machine hosting OmniRoute itself
+    /// — regardless of the API key's rights. Without this check, that 403
+    /// falls through to `.authenticationFailed` and tells the user to fix a
+    /// key that was never the problem; a self-hosted, remotely-accessed
+    /// OmniRoute (this app's most common setup) can never pass this check.
+    private static func throwIfLocalOnly(data: Data, response: URLResponse) throws {
+        guard let http = response as? HTTPURLResponse, http.statusCode == 403,
+              let envelope = try? JSONDecoder().decode(MCPServerErrorEnvelope.self, from: data),
+              envelope.error.code == "LOCAL_ONLY" else {
+            return
+        }
+        throw OmniRouteError.unknown(
+            description: "Le serveur MCP n'est accessible que depuis la machine qui héberge OmniRoute (localhost) — indisponible pour une instance distante, quels que soient les droits de la clé."
+        )
     }
 }

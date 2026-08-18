@@ -92,4 +92,43 @@ final class OmniRouteClientMCPTests: XCTestCase {
         XCTAssertEqual(entries[0].fields["tool"], .string("web_search"))
         XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/api/mcp/audit?limit=10"))
     }
+
+    /// Confirmed empirically against a live OmniRoute 3.8.49 instance: every
+    /// `/api/mcp/*` route 403s with this exact envelope when reached from
+    /// anywhere but localhost, regardless of the key's rights.
+    func test_fetchMCPStatus_localOnly403_throwsDistinguishableError() async throws {
+        let profile = EndpointProfile.defaultLocal
+        let store = InMemoryCredentialStore()
+        MockURLProtocol.requestHandler = { request in
+            let json = #"{"error":{"code":"LOCAL_ONLY","message":"This endpoint requires localhost access","correlation_id":"abc"}}"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 403, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+        let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
+
+        do {
+            _ = try await client.fetchMCPStatus()
+            XCTFail("expected a LOCAL_ONLY-specific error")
+        } catch OmniRouteError.unknown(let description) {
+            XCTAssertTrue(description.localizedCaseInsensitiveContains("localhost"))
+        }
+    }
+
+    func test_listMCPTools_localOnly403_throwsDistinguishableError() async throws {
+        let profile = EndpointProfile.defaultLocal
+        let store = InMemoryCredentialStore()
+        MockURLProtocol.requestHandler = { request in
+            let json = #"{"error":{"code":"LOCAL_ONLY","message":"This endpoint requires localhost access","correlation_id":"abc"}}"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 403, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+        let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
+
+        do {
+            _ = try await client.listMCPTools()
+            XCTFail("expected a LOCAL_ONLY-specific error")
+        } catch OmniRouteError.unknown(let description) {
+            XCTAssertTrue(description.localizedCaseInsensitiveContains("localhost"))
+        }
+    }
 }

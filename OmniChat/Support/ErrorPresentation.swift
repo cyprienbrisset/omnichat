@@ -18,8 +18,13 @@ extension OmniRouteError {
             return "Réponse inattendue d'OmniRoute (code \(statusCode))."
         case .streamInterrupted:
             return "La réponse a été interrompue avant la fin. Le fragment reçu est conservé."
-        case .unknown:
-            return "Une erreur inattendue est survenue."
+        case .unknown(let description):
+            // `.unknown` is how this app surfaces specific, real diagnostics
+            // it can't classify into the other cases (unrecognized response
+            // shapes, server-specific restrictions like MCP's LOCAL_ONLY) —
+            // showing a generic string here would discard exactly the detail
+            // that makes those messages useful.
+            return description
         }
     }
 
