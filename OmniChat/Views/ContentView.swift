@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var conversationPendingRename: Conversation?
     @State private var renameText = ""
     @State private var operationError: String?
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     private var activeConversations: [Conversation] {
         conversations.filter { $0.deletedAt == nil && !$0.isArchived }
@@ -62,6 +63,9 @@ struct ContentView: View {
         }
         .onChange(of: selectedConversation) { _, newValue in
             if newValue != nil { showingGallery = false }
+        }
+        .sheet(isPresented: Binding(get: { !hasCompletedOnboarding }, set: { hasCompletedOnboarding = !$0 })) {
+            OnboardingView(onFinish: { hasCompletedOnboarding = true })
         }
         .alert(
             "Supprimer définitivement ?",
