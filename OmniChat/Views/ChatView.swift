@@ -66,7 +66,8 @@ struct ChatView: View {
                 mediaFileStore: MediaFileStore(),
                 context: context,
                 diagnosticLogger: appEnvironment.diagnosticLogger,
-                endpointName: appEnvironment.activeProfile.name
+                endpointName: appEnvironment.activeProfile.name,
+                localTools: [SearchLocalHistoryTool(client: client, context: context)]
             )
         }
         .navigationTitle(conversation.title)

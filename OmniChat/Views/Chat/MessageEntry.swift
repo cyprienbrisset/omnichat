@@ -45,6 +45,38 @@ struct MessageEntry: View {
         }
     }
 
+    /// A real tool call OmniChat executed itself for this turn — name,
+    /// raw arguments, and the actual result, never OmniRoute's MCP catalog
+    /// (unreachable for a self-hosted remote instance; see
+    /// `OmniRouteClient+MCP.swift`).
+    private func toolCallCard(name: String, arguments: String?, result: String?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "wrench.and.screwdriver")
+                    .font(.system(size: 9, weight: .semibold))
+                Text(name)
+                    .font(OmniTheme.mono(10, weight: .semibold))
+            }
+            .foregroundStyle(OmniTheme.accent)
+            if let arguments, !arguments.isEmpty {
+                Text(arguments)
+                    .font(OmniTheme.mono(9))
+                    .foregroundStyle(OmniTheme.inkSoft)
+            }
+            if let result {
+                Text(result)
+                    .font(OmniTheme.mono(10))
+                    .foregroundStyle(OmniTheme.ink)
+                    .lineLimit(4)
+            }
+        }
+        .padding(10)
+        .background(OmniTheme.paperMuted)
+        .overlay(alignment: .leading) {
+            Rectangle().fill(OmniTheme.accent).frame(width: 2)
+        }
+    }
+
     private var responseBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
@@ -52,6 +84,9 @@ struct MessageEntry: View {
                     .fill(message.isIncomplete ? OmniTheme.warning : OmniTheme.success)
                     .frame(width: 6, height: 6)
                 OmniTheme.label("Réponse", size: 10, color: OmniTheme.inkSoft)
+            }
+            if let toolName = message.toolName {
+                toolCallCard(name: toolName, arguments: message.toolArguments, result: message.toolResult)
             }
             if let mediaItem = message.mediaItem {
                 MediaContentView(mediaItem: mediaItem)

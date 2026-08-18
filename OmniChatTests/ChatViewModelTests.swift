@@ -46,6 +46,43 @@ private final class SlowFakeChatCompleting: ChatCompleting, @unchecked Sendable 
     }
 }
 
+/// Returns a different delta sequence on each successive call — needed to
+/// test a tool-calling round-trip, where the same `ChatViewModel.send()`
+/// issues a first request (ending in a tool call) and a follow-up request
+/// (with the tool's result folded into history) that must yield different
+/// content.
+private final class SequencedFakeChatCompleting: ChatCompleting, @unchecked Sendable {
+    private var remainingRounds: [[ChatDelta]]
+    private(set) var capturedRequests: [ChatCompletionRequest] = []
+
+    init(rounds: [[ChatDelta]]) {
+        self.remainingRounds = rounds
+    }
+
+    func streamChatCompletion(_ request: ChatCompletionRequest) -> AsyncThrowingStream<ChatDelta, Error> {
+        capturedRequests.append(request)
+        let deltas = remainingRounds.isEmpty ? [] : remainingRounds.removeFirst()
+        return AsyncThrowingStream { continuation in
+            for delta in deltas { continuation.yield(delta) }
+            continuation.finish()
+        }
+    }
+}
+
+private struct FakeCalculatorTool: LocalTool {
+    var definition: ToolDefinition {
+        ToolDefinition(function: .init(
+            name: "calculator",
+            description: "test tool",
+            parameters: ToolParameterSchema(properties: ["expression": .init(type: "string", description: "expr")], required: ["expression"])
+        ))
+    }
+
+    func execute(argumentsJSON: String) async throws -> String {
+        "4183"
+    }
+}
+
 private final class FakeMediaGenerating: MediaGenerating, @unchecked Sendable {
     enum Outcome {
         case success(MediaGenerationResult)
@@ -106,7 +143,8 @@ final class ChatViewModelTests: XCTestCase {
         conversation: Conversation,
         client: ChatCompleting,
         context: ModelContext,
-        mediaClient: MediaGenerating = FakeMediaGenerating()
+        mediaClient: MediaGenerating = FakeMediaGenerating(),
+        localTools: [LocalTool] = []
     ) -> ChatViewModel {
         ChatViewModel(
             conversation: conversation,
@@ -115,7 +153,8 @@ final class ChatViewModelTests: XCTestCase {
             mediaFileStore: makeMediaFileStore(),
             context: context,
             diagnosticLogger: makeDiagnosticLogger(),
-            endpointName: "Test"
+            endpointName: "Test",
+            localTools: localTools
         )
     }
 
@@ -134,6 +173,37 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(conversation.messages.count, 2)
         XCTAssertEqual(conversation.orderedMessages.last?.content, "Bonjour")
         XCTAssertNil(viewModel.currentError)
+    }
+
+    func test_send_toolCall_executesLocalToolAndContinuesWithResult() async throws {
+        let context = try makeContext()
+        let conversation = Conversation(title: "Test", defaultModelID: "auto")
+        context.insert(conversation)
+        let fake = SequencedFakeChatCompleting(rounds: [
+            [
+                ChatDelta(
+                    content: "",
+                    isFinal: false,
+                    toolCallDeltas: [ToolCallDelta(index: 0, id: "call_1", name: "calculator", argumentsFragment: "{\"expression\":\"47*89\"}")]
+                ),
+                ChatDelta(content: "", isFinal: false, finishReason: "tool_calls"),
+            ],
+            [ChatDelta(content: "47 × 89 = 4183", isFinal: false)],
+        ])
+        let viewModel = makeViewModel(conversation: conversation, client: fake, context: context, localTools: [FakeCalculatorTool()])
+
+        await viewModel.send("Combien font 47 fois 89 ?")
+
+        XCTAssertEqual(fake.capturedRequests.count, 2)
+        XCTAssertEqual(conversation.orderedMessages.last?.content, "47 × 89 = 4183")
+        XCTAssertEqual(conversation.orderedMessages.last?.toolName, "calculator")
+        XCTAssertEqual(conversation.orderedMessages.last?.toolResult, "4183")
+        // The follow-up request must carry the assistant's tool call and the
+        // tool's real result so the model can see what it asked for and got.
+        let secondRequestMessages = fake.capturedRequests[1].messages
+        XCTAssertEqual(secondRequestMessages.last?.role, .tool)
+        XCTAssertEqual(secondRequestMessages.last?.content, "4183")
+        XCTAssertEqual(secondRequestMessages.last?.toolCallId, "call_1")
     }
 
     func test_send_onError_marksAssistantMessageIncompleteAndExposesError() async throws {

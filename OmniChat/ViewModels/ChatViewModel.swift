@@ -17,6 +17,13 @@ final class ChatViewModel {
     private let context: ModelContext
     private let diagnosticLogger: DiagnosticLogger
     private let endpointName: String
+    /// Tools OmniChat actually executes itself when the model calls them —
+    /// empty by default, so callers that don't pass any get the exact same
+    /// request shape (`tools: nil`) and behavior as before this existed.
+    private let localTools: [LocalTool]
+    /// Hard cap on tool round-trips per `send()` call, so a model that keeps
+    /// calling tools can't loop forever.
+    private let maxToolRounds = 3
     /// The kind of the most recent attempt — `nil` for text. Read by the
     /// view while `isStreaming` to pick which loading animation to show,
     /// and by `retryLastMessage()` to know which path to re-dispatch.
@@ -29,7 +36,8 @@ final class ChatViewModel {
         mediaFileStore: MediaFileStore,
         context: ModelContext,
         diagnosticLogger: DiagnosticLogger,
-        endpointName: String
+        endpointName: String,
+        localTools: [LocalTool] = []
     ) {
         self.conversation = conversation
         self.client = client
@@ -38,6 +46,7 @@ final class ChatViewModel {
         self.context = context
         self.diagnosticLogger = diagnosticLogger
         self.endpointName = endpointName
+        self.localTools = localTools
     }
 
     func send(_ text: String, attachedContext: [String] = []) async {
@@ -67,30 +76,87 @@ final class ChatViewModel {
             let block = attachedContext.joined(separator: "\n\n---\n\n")
             history.insert(ChatMessage(role: .system, content: "Contexte joint depuis la recherche locale :\n\n\(block)"), at: 0)
         }
-        let request = ChatCompletionRequest(model: conversation.defaultModelID, messages: history)
+        let toolDefinitions = localTools.map(\.definition)
+        var roundsRemaining = maxToolRounds
 
         do {
-            for try await delta in client.streamChatCompletion(request) {
-                // Cooperative stop: ChatView cancels the Task it wraps this
-                // call in when the user taps "Arrêter". Breaking here (rather
-                // than throwing) means no error banner — a deliberate stop
-                // isn't a failure — and breaking out of the for-loop tears
-                // down the underlying AsyncThrowingStream, which cancels the
-                // in-flight network request via its `onTermination` handler.
-                if Task.isCancelled { break }
-                if let telemetry = delta.telemetry {
-                    assistantMessage.routingStrategy = telemetry.routingStrategy
-                    assistantMessage.routingProvider = telemetry.routingProvider
-                    assistantMessage.routingLatencyMs = telemetry.routingLatencyMs
-                    assistantMessage.responseCostUSD = telemetry.responseCostUSD
-                    assistantMessage.tokensIn = telemetry.tokensIn
-                    assistantMessage.tokensOut = telemetry.tokensOut
-                    assistantMessage.cacheHit = telemetry.cacheHit
+            roundLoop: while true {
+                let request = ChatCompletionRequest(
+                    model: conversation.defaultModelID,
+                    messages: history,
+                    tools: toolDefinitions.isEmpty ? nil : toolDefinitions
+                )
+                // Streamed tool calls arrive as incremental fragments keyed
+                // by index — `id`/`name` on the first fragment only,
+                // `arguments` split across many — accumulated here and only
+                // parsed once the round's `finish_reason` confirms the call
+                // is complete.
+                var pendingCalls: [Int: (id: String?, name: String?, arguments: String)] = [:]
+                var endedWithToolCalls = false
+
+                for try await delta in client.streamChatCompletion(request) {
+                    // Cooperative stop: ChatView cancels the Task it wraps this
+                    // call in when the user taps "Arrêter". Breaking here (rather
+                    // than throwing) means no error banner — a deliberate stop
+                    // isn't a failure — and breaking out of the for-loop tears
+                    // down the underlying AsyncThrowingStream, which cancels the
+                    // in-flight network request via its `onTermination` handler.
+                    if Task.isCancelled { break roundLoop }
+                    if let telemetry = delta.telemetry {
+                        assistantMessage.routingStrategy = telemetry.routingStrategy
+                        assistantMessage.routingProvider = telemetry.routingProvider
+                        assistantMessage.routingLatencyMs = telemetry.routingLatencyMs
+                        assistantMessage.responseCostUSD = telemetry.responseCostUSD
+                        assistantMessage.tokensIn = telemetry.tokensIn
+                        assistantMessage.tokensOut = telemetry.tokensOut
+                        assistantMessage.cacheHit = telemetry.cacheHit
+                    }
+                    for fragment in delta.toolCallDeltas {
+                        var entry = pendingCalls[fragment.index] ?? (id: nil, name: nil, arguments: "")
+                        if let id = fragment.id { entry.id = id }
+                        if let name = fragment.name { entry.name = name }
+                        if let argumentsFragment = fragment.argumentsFragment { entry.arguments += argumentsFragment }
+                        pendingCalls[fragment.index] = entry
+                    }
+                    if delta.finishReason == "tool_calls" {
+                        endedWithToolCalls = true
+                    }
+                    assistantMessage.content += delta.content
                 }
-                assistantMessage.content += delta.content
-            }
-            if Task.isCancelled {
-                assistantMessage.isIncomplete = true
+                if Task.isCancelled {
+                    assistantMessage.isIncomplete = true
+                    break roundLoop
+                }
+
+                guard endedWithToolCalls, roundsRemaining > 0,
+                      let firstCall = pendingCalls.sorted(by: { $0.key < $1.key }).first?.value,
+                      let callId = firstCall.id, let name = firstCall.name,
+                      let tool = localTools.first(where: { $0.definition.function.name == name }) else {
+                    break roundLoop
+                }
+                roundsRemaining -= 1
+
+                let result: String
+                do {
+                    result = try await tool.execute(argumentsJSON: firstCall.arguments)
+                } catch {
+                    result = "Erreur lors de l'exécution de l'outil : \(error.localizedDescription)"
+                }
+                assistantMessage.toolName = name
+                assistantMessage.toolArguments = firstCall.arguments
+                assistantMessage.toolResult = result
+                // The partial content emitted before the model decided to
+                // call a tool (if any) isn't the real answer — only the
+                // content from the round that finally responds without
+                // calling another tool is.
+                assistantMessage.content = ""
+
+                history.append(ChatMessage(
+                    role: .assistant,
+                    content: "",
+                    toolCalls: [ToolCall(id: callId, function: .init(name: name, arguments: firstCall.arguments))]
+                ))
+                history.append(ChatMessage(role: .tool, content: result, toolCallId: callId))
             }
         } catch let error as OmniRouteError {
             assistantMessage.isIncomplete = true

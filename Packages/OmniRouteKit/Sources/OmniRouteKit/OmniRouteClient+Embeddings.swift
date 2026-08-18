@@ -1,6 +1,6 @@
 import Foundation
 
-extension OmniRouteClient {
+extension OmniRouteClient: EmbeddingGenerating {
     /// Real embedding vectors from `POST /v1/embeddings` — same plain
     /// bearer-key auth as chat, no management scope needed. Used to index
     /// conversation passages and to embed a search query against them.

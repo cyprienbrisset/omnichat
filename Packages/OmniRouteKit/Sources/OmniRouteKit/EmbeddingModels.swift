@@ -1,5 +1,13 @@
 import Foundation
 
+/// Narrow surface for embedding-backed features (local search, tools that
+/// search it) to depend on — same reasoning as `ChatCompleting`/
+/// `MediaGenerating`: real call sites use `OmniRouteClient`, tests fake it.
+public protocol EmbeddingGenerating: Sendable {
+    func createEmbedding(model: String, input: String) async throws -> [Double]
+    func listEmbeddingModels() async throws -> [ModelInfo]
+}
+
 /// Request body for `POST /v1/embeddings` — the plain string-input shape,
 /// not the structured multimodal-item variant the reference also documents.
 struct EmbeddingRequest: Encodable, Sendable {

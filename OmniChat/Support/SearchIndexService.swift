@@ -23,7 +23,7 @@ enum SearchIndexService {
     @MainActor
     static func reindex(
         _ conversation: Conversation,
-        client: OmniRouteClient,
+        client: EmbeddingGenerating,
         embeddingModel: String,
         context: ModelContext
     ) async throws {
@@ -49,7 +49,7 @@ enum SearchIndexService {
     @MainActor
     static func search(
         query: String,
-        client: OmniRouteClient,
+        client: EmbeddingGenerating,
         embeddingModel: String,
         context: ModelContext,
         limit: Int = 20

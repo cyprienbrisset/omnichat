@@ -18,7 +18,10 @@ compatible OpenAI.
 > statistiques d'audit), indicateur réel de santé des fournisseurs en pied
 > de sidebar (`/api/monitoring/health`), recherche locale (RAG) sur
 > l'historique des conversations avec attache de contexte au message
-> suivant, comparaison multi-modèles côte à côte (prompt unique, N flux
+> suivant, appels d'outils agentiques réels dans le fil (`tools`/
+> `tool_calls` OpenAI confirmés sur `/v1/chat/completions`, outils exécutés
+> par OmniChat lui-même — jamais via le serveur MCP d'OmniRoute, inaccessible
+> à distance), comparaison multi-modèles côte à côte (prompt unique, N flux
 > réels indépendants), menu bar + fenêtre principale. RAG documentaire
 > (import de fichiers), A2A, OCR, transcription audio et gestion des
 > combos/routage/compression ne sont pas encore implémentés (voir le spec
@@ -122,15 +125,11 @@ brute clé/valeur triée). Seule la liste des outils (`name`, `description`,
 et un rendu dédié.
 
 Le journal d'audit (« Activité récente ») montre les appels d'outils MCP
-*réellement* effectués contre ce serveur, par n'importe quel client — ce
-n'est **pas** une carte d'appel affichée en direct dans le fil de
-conversation. OmniChat n'implémente pas (encore) de boucle d'appel d'outils
-agentique sur `/v1/chat/completions` : la référence d'API ne documente
-aucun support `tools`/`tool_calls` de type OpenAI sur cette route malgré la
-compatibilité OpenAI annoncée, donc afficher une carte d'appel en direct
-dans le fil serait fabriquer une interaction qui n'a pas lieu. Un
-écran de permissions par portée n'aurait de sens qu'une fois cette boucle
-réellement construite et confirmée contre un serveur accessible.
+*réellement* effectués contre ce serveur, par n'importe quel client. Ce
+n'est **pas** le mécanisme derrière les cartes d'appel d'outil affichées
+dans le fil de conversation (voir « Appels d'outils dans le fil »
+ci-dessous) — ce journal reste utile même si OmniRoute lui-même est
+inaccessible pour les appels de la passerelle.
 
 **Confirmé empiriquement contre une instance OmniRoute réelle (3.8.49) :**
 tous les `/api/mcp/*` renvoient `403 {"error":{"code":"LOCAL_ONLY",...}}`
@@ -141,6 +140,28 @@ navigateur MCP affichera donc toujours cette erreur, jamais une vraie
 donnée. L'app détecte ce code précis et affiche le vrai message serveur
 plutôt qu'un « Clé API invalide » trompeur (qui serait la lecture par
 défaut d'un 403 générique).
+
+## Appels d'outils dans le fil
+
+Contrairement à ce que la découverte ci-dessus laissait présager, OmniChat
+implémente désormais un vrai appel d'outils agentique — confirmé
+empiriquement contre l'instance OmniRoute réelle : `POST
+/v1/chat/completions` accepte bien un paramètre `tools` de type OpenAI, et
+diffuse de vrais fragments `tool_calls` (`id`/`name` sur le premier
+fragment, `arguments` réparti en morceaux JSON à concaténer, jusqu'à
+`finish_reason: "tool_calls"`) — capturé directement depuis le serveur, pas
+deviné. OmniChat **n'appelle jamais le serveur MCP d'OmniRoute** pour
+exécuter ces outils (rappel : `/api/mcp/sse` et `/api/mcp/stream`, les
+transports MCP réels, sont eux aussi `LOCAL_ONLY` et donc inaccessibles
+pour une instance distante) — les outils proposés au modèle sont
+entièrement définis et exécutés par OmniChat lui-même (`LocalTool` dans
+`OmniChat/Support/LocalTools.swift`). Un seul outil pour l'instant :
+`search_local_history`, qui appelle la recherche locale déjà construite
+(RAG, section suivante). Chaque appel s'affiche dans le fil comme une
+carte réelle (nom, arguments, résultat) — jamais fabriquée : si l'outil
+échoue, le message d'erreur réel s'affiche. La boucle est plafonnée à 3
+aller-retours par message pour éviter qu'un modèle bavard ne boucle
+indéfiniment.
 
 ## Recherche locale (RAG sur l'historique)
 

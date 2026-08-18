@@ -21,6 +21,15 @@ final class Message {
     var tokensOut: Int?
     var cacheHit: Bool?
 
+    // Set when this assistant turn called a local tool (see
+    // `ChatViewModel.localTools`) — real name/arguments/result of an actual
+    // call OmniChat made and executed itself, never OmniRoute's MCP catalog
+    // (a remote OmniRoute instance can't reach that surface; see
+    // `OmniRouteClient+MCP.swift`).
+    var toolName: String?
+    var toolArguments: String?
+    var toolResult: String?
+
     init(role: String, content: String, isIncomplete: Bool = false, createdAt: Date = Date()) {
         self.role = role
         self.content = content
