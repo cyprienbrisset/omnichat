@@ -11,8 +11,11 @@ compatible OpenAI.
 > (renommer, archiver, corbeille à rétention 30 jours), gestion d'erreurs
 > (auth/rate limit/réseau/stream interrompu/arrêt manuel), persistance
 > locale (SwiftData), clé API dans le Keychain, thème clair/sombre manuel,
-> menu bar + fenêtre principale. RAG, MCP, A2A, OCR et transcription audio
-> ne sont pas encore implémentés (voir le spec pour le périmètre complet).
+> sélection de modèle par conversation (⌘K), détection des droits de
+> gestion sur la clé API, menu bar + fenêtre principale. RAG, MCP, A2A,
+> OCR, transcription audio, comparaison multi-modèles et gestion des
+> combos/routage ne sont pas encore implémentés (voir le spec pour le
+> périmètre complet).
 
 ## Ce que fait OmniChat
 
