@@ -13,9 +13,26 @@ extension OmniRouteClient: MediaGenerating {
         try await performMediaGeneration(request, path: "music/generations", defaultContentType: "audio/mpeg")
     }
 
-    // Protocol conformance stub; real implementation in Task 3
     public func synthesizeSpeech(_ request: SpeechRequest) async throws -> MediaGenerationResult {
-        fatalError("synthesizeSpeech not yet implemented (Task 3)")
+        var attempt = 1
+        while true {
+            do {
+                var urlRequest = try authorizedRequest(path: "audio/speech")
+                urlRequest.httpMethod = "POST"
+                urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                urlRequest.httpBody = try JSONEncoder().encode(request)
+
+                let (data, response) = try await session.data(for: urlRequest)
+                let http = try Self.requireSuccess(response)
+                let contentType = http.value(forHTTPHeaderField: "Content-Type") ?? "audio/mpeg"
+                return .inlineData(data, contentType: contentType)
+            } catch {
+                let mapped = Self.mapNetworkingError(error)
+                guard retryPolicy.shouldRetry(attempt: attempt, error: mapped) else { throw mapped }
+                try await Task.sleep(for: .seconds(retryPolicy.delay(forAttempt: attempt)))
+                attempt += 1
+            }
+        }
     }
 
     private func performMediaGeneration(
