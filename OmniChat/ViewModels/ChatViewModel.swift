@@ -12,19 +12,26 @@ final class ChatViewModel {
     private(set) var persistenceError: String?
 
     private let client: ChatCompleting
+    private let mediaClient: MediaGenerating
+    private let mediaFileStore: MediaFileStore
     private let context: ModelContext
     private let diagnosticLogger: DiagnosticLogger
     private let endpointName: String
+    private var lastAttemptKind: MediaKind?
 
     init(
         conversation: Conversation,
         client: ChatCompleting,
+        mediaClient: MediaGenerating,
+        mediaFileStore: MediaFileStore,
         context: ModelContext,
         diagnosticLogger: DiagnosticLogger,
         endpointName: String
     ) {
         self.conversation = conversation
         self.client = client
+        self.mediaClient = mediaClient
+        self.mediaFileStore = mediaFileStore
         self.context = context
         self.diagnosticLogger = diagnosticLogger
         self.endpointName = endpointName
@@ -33,6 +40,7 @@ final class ChatViewModel {
     func send(_ text: String) async {
         currentError = nil
         persistenceError = nil
+        lastAttemptKind = nil
         let userMessage = Message(role: "user", content: text)
         userMessage.conversation = conversation
         conversation.messages.append(userMessage)
@@ -95,6 +103,62 @@ final class ChatViewModel {
         persistenceError = nil
     }
 
+    func sendMediaPrompt(_ text: String, kind: MediaKind) async {
+        currentError = nil
+        persistenceError = nil
+        lastAttemptKind = kind
+
+        let userMessage = Message(role: "user", content: text)
+        userMessage.conversation = conversation
+        conversation.messages.append(userMessage)
+
+        let assistantMessage = Message(role: "assistant", content: "")
+        assistantMessage.conversation = conversation
+        conversation.messages.append(assistantMessage)
+
+        isStreaming = true
+        defer { isStreaming = false }
+
+        do {
+            let result = try await generate(kind: kind, prompt: text)
+            let fileName = try await mediaFileStore.save(result, preferredExtension: kind.fileExtension)
+            let mediaItem = MediaItem(kind: kind.rawValue, prompt: text, modelID: "auto", fileName: fileName)
+            mediaItem.conversation = conversation
+            context.insert(mediaItem)
+            assistantMessage.mediaItem = mediaItem
+        } catch let error as OmniRouteError {
+            assistantMessage.isIncomplete = true
+            currentError = error
+            await logDiagnostic(error)
+        } catch {
+            assistantMessage.isIncomplete = true
+            let mapped = OmniRouteError.unknown(description: "\(error)")
+            currentError = mapped
+            await logDiagnostic(mapped)
+        }
+
+        do {
+            try context.save()
+        } catch {
+            persistenceError = "Impossible d'enregistrer le média : \(error.localizedDescription)"
+            return
+        }
+        persistenceError = nil
+    }
+
+    private func generate(kind: MediaKind, prompt: String) async throws -> MediaGenerationResult {
+        switch kind {
+        case .image:
+            return try await mediaClient.generateImage(MediaGenerationRequest(model: "auto", prompt: prompt))
+        case .video:
+            return try await mediaClient.generateVideo(MediaGenerationRequest(model: "auto", prompt: prompt))
+        case .music:
+            return try await mediaClient.generateMusic(MediaGenerationRequest(model: "auto", prompt: prompt))
+        case .speech:
+            return try await mediaClient.synthesizeSpeech(SpeechRequest(model: "auto", input: prompt))
+        }
+    }
+
     /// Resends the last user message without re-sending an empty draft.
     /// Removes the trailing incomplete assistant message from the failed
     /// attempt (if any) and re-runs `send` with the same text, rather than
@@ -109,7 +173,11 @@ final class ChatViewModel {
             context.delete(trailing)
         }
 
-        await send(lastUserMessage.content)
+        if let kind = lastAttemptKind {
+            await sendMediaPrompt(lastUserMessage.content, kind: kind)
+        } else {
+            await send(lastUserMessage.content)
+        }
     }
 
     private func logDiagnostic(_ error: OmniRouteError) async {

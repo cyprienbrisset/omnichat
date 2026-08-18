@@ -46,10 +46,41 @@ private final class SlowFakeChatCompleting: ChatCompleting, @unchecked Sendable 
     }
 }
 
+private final class FakeMediaGenerating: MediaGenerating, @unchecked Sendable {
+    enum Outcome {
+        case success(MediaGenerationResult)
+        case failure(Error)
+    }
+
+    var outcome: Outcome = .success(.inlineData(Data("fake".utf8), contentType: "image/png"))
+    private(set) var lastPrompt: String?
+
+    private func resolve(_ prompt: String) throws -> MediaGenerationResult {
+        lastPrompt = prompt
+        switch outcome {
+        case .success(let result): return result
+        case .failure(let error): throw error
+        }
+    }
+
+    func generateImage(_ request: MediaGenerationRequest) async throws -> MediaGenerationResult {
+        try resolve(request.prompt)
+    }
+    func generateVideo(_ request: MediaGenerationRequest) async throws -> MediaGenerationResult {
+        try resolve(request.prompt)
+    }
+    func generateMusic(_ request: MediaGenerationRequest) async throws -> MediaGenerationResult {
+        try resolve(request.prompt)
+    }
+    func synthesizeSpeech(_ request: SpeechRequest) async throws -> MediaGenerationResult {
+        try resolve(request.input)
+    }
+}
+
 @MainActor
 final class ChatViewModelTests: XCTestCase {
     private func makeSchema() -> Schema {
-        Schema([Conversation.self, Message.self, StoredEndpointProfile.self])
+        Schema([Conversation.self, Message.self, StoredEndpointProfile.self, MediaItem.self])
     }
 
     private func makeContainer() throws -> ModelContainer {
@@ -67,10 +98,21 @@ final class ChatViewModelTests: XCTestCase {
         return DiagnosticLogger(fileURL: url)
     }
 
-    private func makeViewModel(conversation: Conversation, client: ChatCompleting, context: ModelContext) -> ChatViewModel {
+    private func makeMediaFileStore() -> MediaFileStore {
+        MediaFileStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true))
+    }
+
+    private func makeViewModel(
+        conversation: Conversation,
+        client: ChatCompleting,
+        context: ModelContext,
+        mediaClient: MediaGenerating = FakeMediaGenerating()
+    ) -> ChatViewModel {
         ChatViewModel(
             conversation: conversation,
             client: client,
+            mediaClient: mediaClient,
+            mediaFileStore: makeMediaFileStore(),
             context: context,
             diagnosticLogger: makeDiagnosticLogger(),
             endpointName: "Test"
@@ -232,5 +274,40 @@ final class ChatViewModelTests: XCTestCase {
         )
 
         XCTAssertEqual(fetched.orderedMessages.map(\.content), ["deux", "trois", "un"])
+    }
+
+    func test_sendMediaPrompt_createsMediaItemAndLinksToAssistantMessage() async throws {
+        let context = try makeContext()
+        let conversation = Conversation(title: "Test", defaultModelID: "auto")
+        context.insert(conversation)
+        let fakeChat = FakeChatCompleting(deltas: [], error: nil)
+        let fakeMedia = FakeMediaGenerating()
+        let viewModel = makeViewModel(conversation: conversation, client: fakeChat, context: context, mediaClient: fakeMedia)
+
+        await viewModel.sendMediaPrompt("un chat sur la lune", kind: .image)
+
+        XCTAssertEqual(fakeMedia.lastPrompt, "un chat sur la lune")
+        let assistantMessage = conversation.orderedMessages.last
+        XCTAssertEqual(assistantMessage?.mediaItem?.kind, "image")
+        XCTAssertNil(viewModel.currentError)
+    }
+
+    func test_retryLastMessage_afterFailedMediaPrompt_retriesSameKind() async throws {
+        let context = try makeContext()
+        let conversation = Conversation(title: "Test", defaultModelID: "auto")
+        context.insert(conversation)
+        let fakeChat = FakeChatCompleting(deltas: [], error: nil)
+        let fakeMedia = FakeMediaGenerating()
+        fakeMedia.outcome = .failure(OmniRouteError.network(description: "timeout"))
+        let viewModel = makeViewModel(conversation: conversation, client: fakeChat, context: context, mediaClient: fakeMedia)
+
+        await viewModel.sendMediaPrompt("un chat", kind: .image)
+        XCTAssertNotNil(viewModel.currentError)
+
+        fakeMedia.outcome = .success(.inlineData(Data("fake".utf8), contentType: "image/png"))
+        await viewModel.retryLastMessage()
+
+        XCTAssertNil(viewModel.currentError)
+        XCTAssertEqual(conversation.orderedMessages.last?.mediaItem?.kind, "image")
     }
 }
