@@ -6,13 +6,15 @@ final class Conversation {
     var title: String
     var createdAt: Date
     var defaultModelID: String
+    var isArchived: Bool = false
     @Relationship(deleteRule: .cascade, inverse: \Message.conversation)
     var messages: [Message] = []
 
-    init(title: String, defaultModelID: String, createdAt: Date = Date()) {
+    init(title: String, defaultModelID: String, createdAt: Date = Date(), isArchived: Bool = false) {
         self.title = title
         self.defaultModelID = defaultModelID
         self.createdAt = createdAt
+        self.isArchived = isArchived
     }
 
     /// SwiftData's to-many relationships are backed by an unordered store, so

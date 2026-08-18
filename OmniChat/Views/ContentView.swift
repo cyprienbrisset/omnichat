@@ -6,6 +6,16 @@ struct ContentView: View {
     @Environment(AppEnvironment.self) private var appEnvironment
     @Query(sort: \Conversation.createdAt, order: .reverse) private var conversations: [Conversation]
     @State private var selectedConversation: Conversation?
+    @State private var conversationPendingDeletion: Conversation?
+    @State private var deletionError: String?
+
+    private var activeConversations: [Conversation] {
+        conversations.filter { !$0.isArchived }
+    }
+
+    private var archivedConversations: [Conversation] {
+        conversations.filter { $0.isArchived }
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -23,8 +33,29 @@ struct ContentView: View {
         }
         .onAppear {
             if selectedConversation == nil {
-                selectedConversation = conversations.first
+                selectedConversation = activeConversations.first
             }
+        }
+        .alert(
+            "Supprimer la conversation ?",
+            isPresented: Binding(
+                get: { conversationPendingDeletion != nil },
+                set: { if !$0 { conversationPendingDeletion = nil } }
+            ),
+            presenting: conversationPendingDeletion
+        ) { conversation in
+            Button("Annuler", role: .cancel) {}
+            Button("Supprimer", role: .destructive) { deleteConversation(conversation) }
+        } message: { conversation in
+            Text("« \(conversation.title) » sera supprimée définitivement, avec tous ses messages.")
+        }
+        .alert(
+            "Suppression impossible",
+            isPresented: Binding(get: { deletionError != nil }, set: { if !$0 { deletionError = nil } })
+        ) {
+            Button("OK") {}
+        } message: {
+            Text(deletionError ?? "")
         }
     }
 
@@ -37,7 +68,7 @@ struct ContentView: View {
                         .font(OmniTheme.serif(20, weight: .semibold))
                         .foregroundStyle(OmniTheme.ink)
                     Spacer()
-                    Text(String(format: "%03d", conversations.count))
+                    Text(String(format: "%03d", activeConversations.count))
                         .font(OmniTheme.mono(12, weight: .semibold))
                         .foregroundStyle(OmniTheme.inkSoft)
                 }
@@ -46,19 +77,19 @@ struct ContentView: View {
 
             Rectangle().fill(OmniTheme.hairline).frame(height: 1)
 
-            List(conversations, selection: $selectedConversation) { conversation in
-                ConversationRow(
-                    conversation: conversation,
-                    isSelected: conversation.persistentModelID == selectedConversation?.persistentModelID
-                )
-                .tag(conversation)
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(
-                    conversation.persistentModelID == selectedConversation?.persistentModelID
-                        ? OmniTheme.paperMuted
-                        : OmniTheme.paper
-                )
+            List(selection: $selectedConversation) {
+                ForEach(activeConversations) { conversation in
+                    row(for: conversation)
+                }
+                if !archivedConversations.isEmpty {
+                    Section {
+                        ForEach(archivedConversations) { conversation in
+                            row(for: conversation)
+                        }
+                    } header: {
+                        OmniTheme.label("Archivées", size: 9, color: OmniTheme.inkSoft)
+                    }
+                }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -108,10 +139,58 @@ struct ContentView: View {
         .navigationTitle("OmniChat")
     }
 
+    @ViewBuilder
+    private func row(for conversation: Conversation) -> some View {
+        ConversationRow(
+            conversation: conversation,
+            isSelected: conversation.persistentModelID == selectedConversation?.persistentModelID
+        )
+        .tag(conversation)
+        .listRowInsets(EdgeInsets())
+        .listRowSeparator(.hidden)
+        .listRowBackground(
+            conversation.persistentModelID == selectedConversation?.persistentModelID
+                ? OmniTheme.paperMuted
+                : OmniTheme.paper
+        )
+        .contextMenu {
+            if conversation.isArchived {
+                Button("Désarchiver", systemImage: "arrow.uturn.backward") {
+                    conversation.isArchived = false
+                    saveOrReportError()
+                }
+            } else {
+                Button("Archiver", systemImage: "archivebox") {
+                    conversation.isArchived = true
+                    saveOrReportError()
+                }
+            }
+            Button("Supprimer", systemImage: "trash", role: .destructive) {
+                conversationPendingDeletion = conversation
+            }
+        }
+    }
+
     private func createConversation() {
         let conversation = Conversation(title: "Nouvelle conversation", defaultModelID: "auto")
         context.insert(conversation)
         selectedConversation = conversation
+    }
+
+    private func deleteConversation(_ conversation: Conversation) {
+        if selectedConversation?.persistentModelID == conversation.persistentModelID {
+            selectedConversation = activeConversations.first { $0.persistentModelID != conversation.persistentModelID }
+        }
+        context.delete(conversation)
+        saveOrReportError()
+    }
+
+    private func saveOrReportError() {
+        do {
+            try context.save()
+        } catch {
+            deletionError = "Une erreur est survenue : \(error.localizedDescription)"
+        }
     }
 }
 
