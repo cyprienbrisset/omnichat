@@ -35,26 +35,33 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            HStack(spacing: 0) {
-                RailView(
-                    mode: Binding(get: { sidebarMode }, set: { sidebarMode = $0; showingGallery = false }),
-                    isGallerySelected: showingGallery,
-                    catalogSummary: appEnvironment.catalogSummary,
-                    onNewConversation: createConversation,
-                    onSelectGallery: { showingGallery = true }
-                )
-                registerPanel
+        // A plain HStack instead of NavigationSplitView: the system split
+        // view draws its own translucent-sidebar shadow/divider (meant for
+        // a vibrancy background), which reads as a floating card hovering
+        // over flat opaque cream — this stays one seamless surface instead.
+        HStack(spacing: 0) {
+            RailView(
+                mode: Binding(get: { sidebarMode }, set: { sidebarMode = $0; showingGallery = false }),
+                isGallerySelected: showingGallery,
+                catalogSummary: appEnvironment.catalogSummary,
+                onNewConversation: createConversation,
+                onSelectGallery: { showingGallery = true }
+            )
+            registerPanel
+                .frame(width: 300)
+
+            Rectangle().fill(OmniTheme.hairline).frame(width: 1)
+
+            Group {
+                if showingGallery {
+                    GalleryView()
+                } else if let selectedConversation {
+                    ChatView(conversation: selectedConversation)
+                } else {
+                    emptyState
+                }
             }
-            .navigationSplitViewColumnWidth(min: 300, ideal: 360, max: 520)
-        } detail: {
-            if showingGallery {
-                GalleryView()
-            } else if let selectedConversation {
-                ChatView(conversation: selectedConversation)
-            } else {
-                emptyState
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear {
             purgeExpiredTrash()
