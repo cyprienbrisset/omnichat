@@ -50,6 +50,8 @@ struct ChatView: View {
             viewModel = ChatViewModel(
                 conversation: conversation,
                 client: client,
+                mediaClient: client,
+                mediaFileStore: MediaFileStore(),
                 context: context,
                 diagnosticLogger: appEnvironment.diagnosticLogger,
                 endpointName: appEnvironment.activeProfile.name
