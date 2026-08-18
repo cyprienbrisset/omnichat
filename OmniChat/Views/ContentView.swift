@@ -1,26 +1,71 @@
 import SwiftUI
 import SwiftData
 
+private enum SidebarMode: String, CaseIterable, Identifiable {
+    case conversations, archived, trash
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .conversations: return "Conversations"
+        case .archived: return "Archivées"
+        case .trash: return "Corbeille"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .conversations: return "bubble.left.and.bubble.right"
+        case .archived: return "archivebox"
+        case .trash: return "trash"
+        }
+    }
+
+    var emptyMessage: String {
+        switch self {
+        case .conversations: return "Ouvre une nouvelle conversation pour commencer à discuter avec OmniRoute."
+        case .archived: return "Les conversations archivées apparaîtront ici."
+        case .trash: return "Les conversations supprimées restent ici 30 jours avant suppression définitive."
+        }
+    }
+}
+
 struct ContentView: View {
     @Environment(\.modelContext) private var context
     @Environment(AppEnvironment.self) private var appEnvironment
     @Query(sort: \Conversation.createdAt, order: .reverse) private var conversations: [Conversation]
     @State private var selectedConversation: Conversation?
-    @State private var conversationPendingDeletion: Conversation?
-    @State private var deletionError: String?
+    @State private var sidebarMode: SidebarMode = .conversations
+    @State private var conversationPendingPermanentDeletion: Conversation?
+    @State private var conversationPendingRename: Conversation?
+    @State private var renameText = ""
+    @State private var operationError: String?
 
     private var activeConversations: [Conversation] {
-        conversations.filter { !$0.isArchived }
+        conversations.filter { $0.deletedAt == nil && !$0.isArchived }
     }
 
     private var archivedConversations: [Conversation] {
-        conversations.filter { $0.isArchived }
+        conversations.filter { $0.deletedAt == nil && $0.isArchived }
+    }
+
+    private var trashedConversations: [Conversation] {
+        conversations.filter { $0.deletedAt != nil }
+    }
+
+    private var visibleConversations: [Conversation] {
+        switch sidebarMode {
+        case .conversations: return activeConversations
+        case .archived: return archivedConversations
+        case .trash: return trashedConversations
+        }
     }
 
     var body: some View {
         NavigationSplitView {
             HStack(spacing: 0) {
-                RailView(onNewConversation: createConversation)
+                RailView(mode: $sidebarMode, onNewConversation: createConversation)
                 registerPanel
             }
             .navigationSplitViewColumnWidth(min: 300, ideal: 360, max: 520)
@@ -32,30 +77,45 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            purgeExpiredTrash()
             if selectedConversation == nil {
                 selectedConversation = activeConversations.first
             }
         }
         .alert(
-            "Supprimer la conversation ?",
+            "Supprimer définitivement ?",
             isPresented: Binding(
-                get: { conversationPendingDeletion != nil },
-                set: { if !$0 { conversationPendingDeletion = nil } }
+                get: { conversationPendingPermanentDeletion != nil },
+                set: { if !$0 { conversationPendingPermanentDeletion = nil } }
             ),
-            presenting: conversationPendingDeletion
+            presenting: conversationPendingPermanentDeletion
         ) { conversation in
             Button("Annuler", role: .cancel) {}
-            Button("Supprimer", role: .destructive) { deleteConversation(conversation) }
+            Button("Supprimer", role: .destructive) { permanentlyDelete(conversation) }
         } message: { conversation in
-            Text("« \(conversation.title) » sera supprimée définitivement, avec tous ses messages.")
+            Text("« \(conversation.title) » et tous ses messages seront supprimés définitivement. Cette action est irréversible.")
         }
         .alert(
-            "Suppression impossible",
-            isPresented: Binding(get: { deletionError != nil }, set: { if !$0 { deletionError = nil } })
+            "Renommer la conversation",
+            isPresented: Binding(
+                get: { conversationPendingRename != nil },
+                set: { if !$0 { conversationPendingRename = nil } }
+            ),
+            presenting: conversationPendingRename
+        ) { conversation in
+            TextField("Titre", text: $renameText)
+            Button("Annuler", role: .cancel) {}
+            Button("Renommer") { applyRename(to: conversation) }
+        } message: { _ in
+            Text("Choisis un nouveau titre.")
+        }
+        .alert(
+            "Une erreur est survenue",
+            isPresented: Binding(get: { operationError != nil }, set: { if !$0 { operationError = nil } })
         ) {
             Button("OK") {}
         } message: {
-            Text(deletionError ?? "")
+            Text(operationError ?? "")
         }
     }
 
@@ -64,11 +124,11 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 6) {
                 OmniTheme.label("Registre")
                 HStack(alignment: .firstTextBaseline) {
-                    Text("Conversations")
+                    Text(sidebarMode.title)
                         .font(OmniTheme.serif(20, weight: .semibold))
                         .foregroundStyle(OmniTheme.ink)
                     Spacer()
-                    Text(String(format: "%03d", activeConversations.count))
+                    Text(String(format: "%03d", visibleConversations.count))
                         .font(OmniTheme.mono(12, weight: .semibold))
                         .foregroundStyle(OmniTheme.inkSoft)
                 }
@@ -77,23 +137,22 @@ struct ContentView: View {
 
             Rectangle().fill(OmniTheme.hairline).frame(height: 1)
 
-            List(selection: $selectedConversation) {
-                ForEach(activeConversations) { conversation in
-                    row(for: conversation)
-                }
-                if !archivedConversations.isEmpty {
-                    Section {
-                        ForEach(archivedConversations) { conversation in
-                            row(for: conversation)
-                        }
-                    } header: {
-                        OmniTheme.label("Archivées", size: 9, color: OmniTheme.inkSoft)
+            if visibleConversations.isEmpty {
+                Text(sidebarMode.emptyMessage)
+                    .font(OmniTheme.serif(12).italic())
+                    .foregroundStyle(OmniTheme.inkSoft)
+                    .padding(18)
+                Spacer()
+            } else {
+                List(selection: $selectedConversation) {
+                    ForEach(visibleConversations) { conversation in
+                        row(for: conversation)
                     }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .background(OmniTheme.paper)
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(OmniTheme.paper)
 
             Rectangle().fill(OmniTheme.hairline).frame(height: 1)
 
@@ -143,7 +202,8 @@ struct ContentView: View {
     private func row(for conversation: Conversation) -> some View {
         ConversationRow(
             conversation: conversation,
-            isSelected: conversation.persistentModelID == selectedConversation?.persistentModelID
+            isSelected: conversation.persistentModelID == selectedConversation?.persistentModelID,
+            daysRemaining: sidebarMode == .trash ? daysRemainingInTrash(conversation) : nil
         )
         .tag(conversation)
         .listRowInsets(EdgeInsets())
@@ -154,34 +214,93 @@ struct ContentView: View {
                 : OmniTheme.paper
         )
         .contextMenu {
-            if conversation.isArchived {
-                Button("Désarchiver", systemImage: "arrow.uturn.backward") {
-                    conversation.isArchived = false
-                    saveOrReportError()
+            switch sidebarMode {
+            case .conversations, .archived:
+                Button("Renommer", systemImage: "pencil") {
+                    renameText = conversation.title
+                    conversationPendingRename = conversation
                 }
-            } else {
-                Button("Archiver", systemImage: "archivebox") {
-                    conversation.isArchived = true
-                    saveOrReportError()
+                if conversation.isArchived {
+                    Button("Désarchiver", systemImage: "arrow.uturn.backward") {
+                        conversation.isArchived = false
+                        saveOrReportError()
+                    }
+                } else {
+                    Button("Archiver", systemImage: "archivebox") {
+                        conversation.isArchived = true
+                        saveOrReportError()
+                    }
                 }
-            }
-            Button("Supprimer", systemImage: "trash", role: .destructive) {
-                conversationPendingDeletion = conversation
+                Button("Supprimer", systemImage: "trash", role: .destructive) {
+                    moveToTrash(conversation)
+                }
+            case .trash:
+                Button("Restaurer", systemImage: "arrow.uturn.backward") {
+                    restore(conversation)
+                }
+                Button("Supprimer définitivement", systemImage: "trash.slash", role: .destructive) {
+                    conversationPendingPermanentDeletion = conversation
+                }
             }
         }
+    }
+
+    private func daysRemainingInTrash(_ conversation: Conversation) -> Int? {
+        guard let deletedAt = conversation.deletedAt else { return nil }
+        let expiryDate = Calendar.current.date(byAdding: .day, value: Conversation.trashRetentionDays, to: deletedAt) ?? deletedAt
+        let days = Calendar.current.dateComponents([.day], from: Date(), to: expiryDate).day ?? 0
+        return max(days, 0)
     }
 
     private func createConversation() {
         let conversation = Conversation(title: "Nouvelle conversation", defaultModelID: "auto")
         context.insert(conversation)
         selectedConversation = conversation
+        sidebarMode = .conversations
     }
 
-    private func deleteConversation(_ conversation: Conversation) {
+    private func moveToTrash(_ conversation: Conversation) {
+        conversation.deletedAt = Date()
         if selectedConversation?.persistentModelID == conversation.persistentModelID {
             selectedConversation = activeConversations.first { $0.persistentModelID != conversation.persistentModelID }
         }
+        saveOrReportError()
+    }
+
+    private func restore(_ conversation: Conversation) {
+        conversation.deletedAt = nil
+        conversation.isArchived = false
+        saveOrReportError()
+    }
+
+    private func permanentlyDelete(_ conversation: Conversation) {
+        if selectedConversation?.persistentModelID == conversation.persistentModelID {
+            selectedConversation = nil
+        }
         context.delete(conversation)
+        saveOrReportError()
+    }
+
+    private func applyRename(to conversation: Conversation) {
+        let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        conversation.title = trimmed
+        saveOrReportError()
+    }
+
+    /// Permanently removes conversations that have sat in the trash past the
+    /// retention window — the same "keep briefly, then purge" shape as
+    /// `DiagnosticLogger.purgeExpired(now:)`, just for conversations.
+    private func purgeExpiredTrash() {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -Conversation.trashRetentionDays, to: Date()) ?? .distantPast
+        let expired = conversations.filter { conversation in
+            guard let deletedAt = conversation.deletedAt else { return false }
+            return deletedAt < cutoff
+        }
+        guard !expired.isEmpty else { return }
+        for conversation in expired {
+            context.delete(conversation)
+        }
         saveOrReportError()
     }
 
@@ -189,14 +308,15 @@ struct ContentView: View {
         do {
             try context.save()
         } catch {
-            deletionError = "Une erreur est survenue : \(error.localizedDescription)"
+            operationError = error.localizedDescription
         }
     }
 }
 
 /// The dark, fixed-ink strip carrying the app's identity mark, primary
-/// navigation action, and settings entry point.
+/// navigation action, sidebar mode switcher, and settings entry point.
 private struct RailView: View {
+    @Binding var mode: SidebarMode
     let onNewConversation: () -> Void
 
     var body: some View {
@@ -222,6 +342,20 @@ private struct RailView: View {
             .buttonStyle(.plain)
             .help("Nouvelle conversation")
 
+            Rectangle().fill(OmniTheme.railText.opacity(0.2)).frame(width: 20, height: 1)
+
+            ForEach([SidebarMode.conversations, .archived, .trash]) { candidate in
+                Button {
+                    mode = candidate
+                } label: {
+                    Image(systemName: candidate.systemImage)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(mode == candidate ? OmniTheme.accent : OmniTheme.railText.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+                .help(candidate.title)
+            }
+
             Spacer()
 
             SettingsLink {
@@ -244,6 +378,7 @@ private struct RailView: View {
 private struct ConversationRow: View {
     let conversation: Conversation
     let isSelected: Bool
+    let daysRemaining: Int?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -255,9 +390,15 @@ private struct ConversationRow: View {
                     .font(OmniTheme.serif(14, weight: .medium))
                     .foregroundStyle(OmniTheme.ink)
                     .lineLimit(1)
-                Text(conversation.createdAt, style: .relative)
-                    .font(OmniTheme.mono(9))
-                    .foregroundStyle(OmniTheme.inkSoft)
+                if let daysRemaining {
+                    Text("supprimée définitivement dans \(daysRemaining) j")
+                        .font(OmniTheme.mono(9))
+                        .foregroundStyle(OmniTheme.warning)
+                } else {
+                    Text(conversation.createdAt, style: .relative)
+                        .font(OmniTheme.mono(9))
+                        .foregroundStyle(OmniTheme.inkSoft)
+                }
             }
             .padding(.vertical, 8)
             .padding(.leading, 15)

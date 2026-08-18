@@ -7,14 +7,21 @@ final class Conversation {
     var createdAt: Date
     var defaultModelID: String
     var isArchived: Bool = false
+    /// `nil` while active; set when moved to the trash. Purged for good 30
+    /// days after this date (see `ContentView.purgeExpiredTrash`) — mirrors
+    /// `DiagnosticLogger`'s existing retention-then-purge pattern.
+    var deletedAt: Date?
     @Relationship(deleteRule: .cascade, inverse: \Message.conversation)
     var messages: [Message] = []
 
-    init(title: String, defaultModelID: String, createdAt: Date = Date(), isArchived: Bool = false) {
+    static let trashRetentionDays = 30
+
+    init(title: String, defaultModelID: String, createdAt: Date = Date(), isArchived: Bool = false, deletedAt: Date? = nil) {
         self.title = title
         self.defaultModelID = defaultModelID
         self.createdAt = createdAt
         self.isArchived = isArchived
+        self.deletedAt = deletedAt
     }
 
     /// SwiftData's to-many relationships are backed by an unordered store, so
