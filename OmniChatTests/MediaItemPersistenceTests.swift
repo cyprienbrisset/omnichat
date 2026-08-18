@@ -4,7 +4,7 @@ import SwiftData
 
 final class MediaItemPersistenceTests: XCTestCase {
     private func makeContext() throws -> ModelContext {
-        let schema = Schema([Conversation.self, Message.self, StoredEndpointProfile.self, MediaItem.self])
+        let schema = Schema([Conversation.self, Message.self, StoredEndpointProfile.self, MediaItem.self, SearchPassage.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [config])
         return ModelContext(container)

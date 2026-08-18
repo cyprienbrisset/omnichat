@@ -80,7 +80,7 @@ private final class FakeMediaGenerating: MediaGenerating, @unchecked Sendable {
 @MainActor
 final class ChatViewModelTests: XCTestCase {
     private func makeSchema() -> Schema {
-        Schema([Conversation.self, Message.self, StoredEndpointProfile.self, MediaItem.self])
+        Schema([Conversation.self, Message.self, StoredEndpointProfile.self, MediaItem.self, SearchPassage.self])
     }
 
     private func makeContainer() throws -> ModelContainer {

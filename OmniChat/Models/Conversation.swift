@@ -13,6 +13,8 @@ final class Conversation {
     var deletedAt: Date?
     @Relationship(deleteRule: .cascade, inverse: \Message.conversation)
     var messages: [Message] = []
+    @Relationship(deleteRule: .cascade, inverse: \SearchPassage.conversation)
+    var searchPassages: [SearchPassage] = []
 
     static let trashRetentionDays = 30
 

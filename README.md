@@ -16,10 +16,12 @@ compatible OpenAI.
 > via l'API de gestion, avec message explicite si la clé n'a pas les
 > droits), navigateur du serveur MCP embarqué (statut, outils exposés,
 > statistiques d'audit), indicateur réel de santé des fournisseurs en pied
-> de sidebar (`/api/monitoring/health`), menu bar + fenêtre principale.
-> RAG, A2A, OCR, transcription audio, comparaison multi-modèles et gestion
-> des combos/routage/compression ne sont pas encore implémentés (voir le spec pour le
-> périmètre complet).
+> de sidebar (`/api/monitoring/health`), recherche locale (RAG) sur
+> l'historique des conversations avec attache de contexte au message
+> suivant, menu bar + fenêtre principale. RAG documentaire (import de
+> fichiers), A2A, OCR, transcription audio, comparaison multi-modèles et
+> gestion des combos/routage/compression ne sont pas encore implémentés
+> (voir le spec pour le périmètre complet).
 
 ## Ce que fait OmniChat
 
@@ -107,6 +109,23 @@ d'afficher une donnée réelle sous une mauvaise étiquette, ces deux réponses
 sont affichées telles quelles (liste brute clé/valeur triée). Seule la
 liste des outils (`name`, `description`, `scopes`, `phase`, `auditLevel`,
 `sourceEndpoints`) a une forme documentée et un rendu dédié.
+
+## Recherche locale (RAG sur l'historique)
+
+Icône dédiée du rail ouvrant un navigateur de recherche locale sur les
+conversations. Contrairement à Mémoire et MCP, aucune clé de gestion n'est
+requise : l'indexation et la recherche passent par `POST /v1/embeddings` et
+`GET /v1/embeddings`, la même clé que le chat. L'indexation d'une
+conversation (« Indexer ») est **toujours manuelle** — jamais déclenchée en
+arrière-plan — parce que chaque appel a un coût réel et envoie le contenu
+des messages à un fournisseur d'embeddings tiers via OmniRoute. Le score
+combine une similarité cosinus réelle (vecteurs) et un recouvrement de
+mots-clés simple ; ce n'est pas du FTS5 SQLite malgré ce que suggère le
+mockup, donc l'interface ne prétend pas l'être. Les résultats cochés
+peuvent être joints comme contexte au prochain message envoyé (message
+`system` transitoire, jamais persisté comme un vrai message de la
+conversation). L'import de documents externes n'est pas implémenté — seul
+l'historique des conversations déjà dans OmniChat est indexable.
 
 ## Sous-projets liés
 

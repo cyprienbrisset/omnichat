@@ -5,6 +5,7 @@ private enum DetailOverlay {
     case gallery
     case memory
     case mcp
+    case rag
 }
 
 struct ContentView: View {
@@ -51,11 +52,13 @@ struct ContentView: View {
                 isGallerySelected: detailOverlay == .gallery,
                 isMemorySelected: detailOverlay == .memory,
                 isMCPSelected: detailOverlay == .mcp,
+                isRAGSelected: detailOverlay == .rag,
                 catalogSummary: appEnvironment.catalogSummary,
                 onNewConversation: createConversation,
                 onSelectGallery: { detailOverlay = .gallery },
                 onSelectMemory: { detailOverlay = .memory },
-                onSelectMCP: { detailOverlay = .mcp }
+                onSelectMCP: { detailOverlay = .mcp },
+                onSelectRAG: { detailOverlay = .rag }
             )
             registerPanel
                 .frame(width: 300)
@@ -70,6 +73,8 @@ struct ContentView: View {
                     MemoryView()
                 case .mcp:
                     MCPView()
+                case .rag:
+                    RAGView()
                 case nil:
                     if let selectedConversation {
                         ChatView(conversation: selectedConversation)

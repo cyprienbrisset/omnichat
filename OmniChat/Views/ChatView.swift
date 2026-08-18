@@ -127,6 +127,9 @@ struct ChatView: View {
         VStack(spacing: 0) {
             Rectangle().fill(OmniTheme.hairline).frame(height: 1)
             modeSelector
+            if !appEnvironment.pendingAttachedContext.isEmpty {
+                attachedContextRow
+            }
             HStack(alignment: .bottom, spacing: 12) {
                 TextField(
                     "",
@@ -146,12 +149,14 @@ struct ChatView: View {
 
                 Button {
                     let text = draft
+                    let attachedContext = appEnvironment.pendingAttachedContext
                     draft = ""
+                    appEnvironment.pendingAttachedContext = []
                     streamingTask = Task {
                         if let kind = mode.mediaKind {
                             await viewModel?.sendMediaPrompt(text, kind: kind)
                         } else {
-                            await viewModel?.send(text)
+                            await viewModel?.send(text, attachedContext: attachedContext)
                         }
                     }
                 } label: {
@@ -167,6 +172,35 @@ struct ChatView: View {
             .padding(16)
         }
         .background(OmniTheme.paper)
+    }
+
+    /// Shows what local-search passages will ride along with the *next*
+    /// message — real content the user picked in `RAGView`, removable
+    /// individually, cleared automatically once sent.
+    private var attachedContextRow: some View {
+        HStack(spacing: 6) {
+            OmniTheme.label("Contexte joint", size: 9, color: OmniTheme.accent)
+            ForEach(Array(appEnvironment.pendingAttachedContext.enumerated()), id: \.offset) { index, passage in
+                HStack(spacing: 4) {
+                    Text(passage.prefix(40) + (passage.count > 40 ? "…" : ""))
+                        .font(OmniTheme.mono(9))
+                        .foregroundStyle(OmniTheme.inkSoft)
+                    Button {
+                        appEnvironment.pendingAttachedContext.remove(at: index)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 8, weight: .bold))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(OmniTheme.paperMuted)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 
     /// A row of tracked mono tags — the print-shop's substitute for a

@@ -4,7 +4,7 @@ import SwiftData
 
 final class PersistenceModelsTests: XCTestCase {
     private func makeInMemoryContext() throws -> ModelContext {
-        let schema = Schema([Conversation.self, Message.self, StoredEndpointProfile.self])
+        let schema = Schema([Conversation.self, Message.self, StoredEndpointProfile.self, SearchPassage.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [config])
         return ModelContext(container)

@@ -8,7 +8,7 @@ struct OmniChatApp: App {
 
     init() {
         do {
-            modelContainer = try ModelContainer(for: Conversation.self, Message.self, StoredEndpointProfile.self, MediaItem.self)
+            modelContainer = try ModelContainer(for: Conversation.self, Message.self, StoredEndpointProfile.self, MediaItem.self, SearchPassage.self)
         } catch {
             fatalError("Impossible d'initialiser SwiftData: \(error)")
         }

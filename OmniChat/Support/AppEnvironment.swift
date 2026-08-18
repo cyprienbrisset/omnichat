@@ -29,6 +29,10 @@ final class AppEnvironment {
     private(set) var managementAccessState: ManagementAccessState = .unknown
     private(set) var catalogSummary: CatalogSummary?
     private(set) var monitoringHealth: MonitoringHealth?
+    /// Passages the user picked from local search (`RAGView`) to attach as
+    /// context to their *next* outgoing message — one-shot, cleared by
+    /// `ChatView` right after it reads them into the request.
+    var pendingAttachedContext: [String] = []
 
     var themePreference: ThemePreference {
         didSet {

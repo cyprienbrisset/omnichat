@@ -40,7 +40,7 @@ final class ChatViewModel {
         self.endpointName = endpointName
     }
 
-    func send(_ text: String) async {
+    func send(_ text: String, attachedContext: [String] = []) async {
         currentError = nil
         persistenceError = nil
         lastAttemptKind = nil
@@ -58,9 +58,15 @@ final class ChatViewModel {
         // `orderedMessages` is the single source of truth for chronological
         // order (SwiftData's to-many relationship is unordered); exclude the
         // fresh assistant placeholder by identity, not by array position.
-        let history = conversation.orderedMessages
+        var history = conversation.orderedMessages
             .filter { $0.persistentModelID != assistantMessage.persistentModelID }
             .map { ChatMessage(role: ChatRole(rawValue: $0.role) ?? .user, content: $0.content) }
+        // Passages picked from local search are sent as context for this
+        // request only — never persisted as a real conversation message.
+        if !attachedContext.isEmpty {
+            let block = attachedContext.joined(separator: "\n\n---\n\n")
+            history.insert(ChatMessage(role: .system, content: "Contexte joint depuis la recherche locale :\n\n\(block)"), at: 0)
+        }
         let request = ChatCompletionRequest(model: conversation.defaultModelID, messages: history)
 
         do {
