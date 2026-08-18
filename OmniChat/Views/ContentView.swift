@@ -1,13 +1,18 @@
 import SwiftUI
 import SwiftData
 
+private enum DetailOverlay {
+    case gallery
+    case memory
+}
+
 struct ContentView: View {
     @Environment(\.modelContext) private var context
     @Environment(AppEnvironment.self) private var appEnvironment
     @Query(sort: \Conversation.createdAt, order: .reverse) private var conversations: [Conversation]
     @State private var selectedConversation: Conversation?
     @State private var sidebarMode: SidebarMode = .conversations
-    @State private var showingGallery = false
+    @State private var detailOverlay: DetailOverlay?
     @State private var conversationPendingPermanentDeletion: Conversation?
     @State private var conversationPendingRename: Conversation?
     @State private var renameText = ""
@@ -41,11 +46,13 @@ struct ContentView: View {
         // over flat opaque cream — this stays one seamless surface instead.
         HStack(spacing: 0) {
             RailView(
-                mode: Binding(get: { sidebarMode }, set: { sidebarMode = $0; showingGallery = false }),
-                isGallerySelected: showingGallery,
+                mode: Binding(get: { sidebarMode }, set: { sidebarMode = $0; detailOverlay = nil }),
+                isGallerySelected: detailOverlay == .gallery,
+                isMemorySelected: detailOverlay == .memory,
                 catalogSummary: appEnvironment.catalogSummary,
                 onNewConversation: createConversation,
-                onSelectGallery: { showingGallery = true }
+                onSelectGallery: { detailOverlay = .gallery },
+                onSelectMemory: { detailOverlay = .memory }
             )
             registerPanel
                 .frame(width: 300)
@@ -53,12 +60,17 @@ struct ContentView: View {
             Rectangle().fill(OmniTheme.hairline).frame(width: 1)
 
             Group {
-                if showingGallery {
+                switch detailOverlay {
+                case .gallery:
                     GalleryView()
-                } else if let selectedConversation {
-                    ChatView(conversation: selectedConversation)
-                } else {
-                    emptyState
+                case .memory:
+                    MemoryView()
+                case nil:
+                    if let selectedConversation {
+                        ChatView(conversation: selectedConversation)
+                    } else {
+                        emptyState
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -70,7 +82,7 @@ struct ContentView: View {
             }
         }
         .onChange(of: selectedConversation) { _, newValue in
-            if newValue != nil { showingGallery = false }
+            if newValue != nil { detailOverlay = nil }
         }
         .sheet(isPresented: Binding(get: { !hasCompletedOnboarding }, set: { hasCompletedOnboarding = !$0 })) {
             OnboardingView(onFinish: { hasCompletedOnboarding = true })

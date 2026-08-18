@@ -25,7 +25,7 @@ extension OmniRouteClient {
     /// server root by stripping a trailing `/v1` from the configured base
     /// URL, rather than reusing `authorizedRequest`'s `/v1`-relative path.
     /// Same bearer key as every other call: this is capability, not identity.
-    private nonisolated func authorizedManagementRequest(path: String) throws -> URLRequest {
+    nonisolated func authorizedManagementRequest(path: String) throws -> URLRequest {
         var request = URLRequest(url: managementBaseURL.appendingPathComponent(path))
         if let apiKey = try credentialStore.apiKey(for: profile.id) {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -33,7 +33,7 @@ extension OmniRouteClient {
         return request
     }
 
-    private nonisolated var managementBaseURL: URL {
+    nonisolated var managementBaseURL: URL {
         if profile.baseURL.lastPathComponent.lowercased() == "v1" {
             return profile.baseURL.deletingLastPathComponent()
         }

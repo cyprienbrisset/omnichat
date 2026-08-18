@@ -5,9 +5,11 @@ import SwiftUI
 struct RailView: View {
     @Binding var mode: SidebarMode
     let isGallerySelected: Bool
+    let isMemorySelected: Bool
     let catalogSummary: CatalogSummary?
     let onNewConversation: () -> Void
     let onSelectGallery: () -> Void
+    let onSelectMemory: () -> Void
 
     var body: some View {
         VStack(spacing: 18) {
@@ -40,7 +42,10 @@ struct RailView: View {
                 } label: {
                     Image(systemName: candidate.systemImage)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(!isGallerySelected && mode == candidate ? OmniTheme.accent : OmniTheme.railText.opacity(0.7))
+                        .foregroundStyle(
+                            !isGallerySelected && !isMemorySelected && mode == candidate
+                                ? OmniTheme.accent : OmniTheme.railText.opacity(0.7)
+                        )
                 }
                 .buttonStyle(.plain)
                 .help(candidate.title)
@@ -53,6 +58,14 @@ struct RailView: View {
             }
             .buttonStyle(.plain)
             .help("Galerie")
+
+            Button(action: onSelectMemory) {
+                Image(systemName: "brain")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isMemorySelected ? OmniTheme.accent : OmniTheme.railText.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+            .help("Mémoire")
 
             Spacer()
 

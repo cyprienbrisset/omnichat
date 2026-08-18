@@ -12,10 +12,11 @@ compatible OpenAI.
 > (auth/rate limit/réseau/stream interrompu/arrêt manuel), persistance
 > locale (SwiftData), clé API dans le Keychain, thème clair/sombre manuel,
 > sélection de modèle par conversation (⌘K), détection des droits de
-> gestion sur la clé API, menu bar + fenêtre principale. RAG, MCP, A2A,
-> OCR, transcription audio, comparaison multi-modèles et gestion des
-> combos/routage ne sont pas encore implémentés (voir le spec pour le
-> périmètre complet).
+> gestion sur la clé API, navigateur de mémoire réel (lecture/suppression
+> via l'API de gestion, avec message explicite si la clé n'a pas les
+> droits), menu bar + fenêtre principale. RAG, MCP, A2A, OCR, transcription
+> audio, comparaison multi-modèles et gestion des combos/routage ne sont
+> pas encore implémentés (voir le spec pour le périmètre complet).
 
 ## Ce que fait OmniChat
 
@@ -49,10 +50,9 @@ affiche, quand OmniRoute les fournit, sa trace de routage et son coût réels
 (stratégie/fournisseur, latence, tokens, coût, cache) — lus depuis les
 en-têtes `X-OmniRoute-*` de la réponse, jamais recalculés ni fabriqués : si
 un champ est absent (le jeu coût/tokens n'est confirmé par la doc que hors
-streaming), il n'apparaît simplement pas. Une vue
-comparaison de réponses, un sélecteur de modèles façon trombinoscope
-(⌘K) et un panneau de routage/combos font partie d'une direction future
-documentée mais non planifiée — ils dépendent de fonctionnalités
+streaming), il n'apparaît simplement pas. Une vue comparaison de réponses
+et un panneau de gestion des combos/routage font partie d'une direction
+future documentée mais non planifiée — ils dépendent de fonctionnalités
 (télémétrie de combo, coûts/latences par requête) pas encore construites.
 
 ## Génération média
@@ -79,6 +79,19 @@ supprimer — la suppression la déplace en Corbeille plutôt que de l'effacer
 immédiatement ; elle y reste 30 jours (purgée automatiquement ensuite,
 même logique que `DiagnosticLogger`) avant suppression définitive, avec
 restauration ou suppression immédiate possibles entre-temps.
+
+## Mémoire (API de gestion)
+
+Icône dédiée du rail (`brain`) ouvrant un navigateur réel des souvenirs
+stockés côté serveur (`GET/DELETE /api/memory`), accessible uniquement
+avec une clé API disposant des droits de gestion — la même clé que celle
+utilisée pour le chat, jamais un second identifiant : `hasManagementAccess()`
+sonde silencieusement `GET /api/memory` au lancement et adapte l'interface
+en conséquence. Si la clé n'a pas ces droits, la vue l'indique explicitement
+plutôt que d'afficher une liste vide trompeuse. La forme exacte de la
+réponse `/api/memory` n'étant pas documentée avec certitude, le parsing
+essaie plusieurs formes plausibles (tableau nu, `{data:[...]}`,
+`{memories:[...]}`) avant d'échouer proprement.
 
 ## Sous-projets liés
 
