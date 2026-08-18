@@ -15,9 +15,10 @@ compatible OpenAI.
 > gestion sur la clé API, navigateur de mémoire réel (lecture/suppression
 > via l'API de gestion, avec message explicite si la clé n'a pas les
 > droits), navigateur du serveur MCP embarqué (statut, outils exposés,
-> statistiques d'audit), menu bar + fenêtre principale. RAG, A2A, OCR,
-> transcription audio, comparaison multi-modèles et gestion des
-> combos/routage ne sont pas encore implémentés (voir le spec pour le
+> statistiques d'audit), indicateur réel de santé des fournisseurs en pied
+> de sidebar (`/api/monitoring/health`), menu bar + fenêtre principale.
+> RAG, A2A, OCR, transcription audio, comparaison multi-modèles et gestion
+> des combos/routage/compression ne sont pas encore implémentés (voir le spec pour le
 > périmètre complet).
 
 ## Ce que fait OmniChat

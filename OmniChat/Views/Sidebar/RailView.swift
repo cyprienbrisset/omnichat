@@ -80,7 +80,7 @@ struct RailView: View {
             Spacer()
 
             if let catalogSummary {
-                Text("omniroute · \(catalogSummary.modelCount) modèles")
+                Text("omniroute · \(catalogSummary.providerCount) fournisseurs")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .tracking(2)
                     .foregroundStyle(OmniTheme.railText.opacity(0.42))

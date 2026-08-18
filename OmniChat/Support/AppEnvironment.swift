@@ -28,6 +28,7 @@ final class AppEnvironment {
     let diagnosticLogger: DiagnosticLogger
     private(set) var managementAccessState: ManagementAccessState = .unknown
     private(set) var catalogSummary: CatalogSummary?
+    private(set) var monitoringHealth: MonitoringHealth?
 
     var themePreference: ThemePreference {
         didSet {
@@ -111,5 +112,15 @@ final class AppEnvironment {
 
     func updateCatalogSummary(modelCount: Int, providerCount: Int) {
         catalogSummary = CatalogSummary(modelCount: modelCount, providerCount: providerCount)
+    }
+
+    /// Real provider health counts for the sidebar indicator. Requires
+    /// management scope — silently leaves `monitoringHealth` nil (never a
+    /// fabricated count) when the key lacks rights or the call fails.
+    @MainActor
+    func refreshMonitoringHealth() async {
+        guard managementAccessState == .available else { return }
+        let client = OmniRouteClient(profile: activeProfile, credentialStore: credentialStore)
+        monitoringHealth = try? await client.fetchMonitoringHealth()
     }
 }

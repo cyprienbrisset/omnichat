@@ -184,6 +184,14 @@ struct ContentView: View {
                     .font(OmniTheme.mono(10))
                     .foregroundStyle(OmniTheme.inkSoft)
                     .lineLimit(1)
+                // Only shown once measured via /api/monitoring/health — never
+                // a placeholder count when the key lacks management rights.
+                if let health = appEnvironment.monitoringHealth {
+                    Spacer()
+                    Text("\(health.activeCount)/\(health.catalogCount) actifs")
+                        .font(OmniTheme.mono(10))
+                        .foregroundStyle(OmniTheme.inkSoft)
+                }
                 Spacer()
             }
             .padding(EdgeInsets(top: 10, leading: 18, bottom: 12, trailing: 18))

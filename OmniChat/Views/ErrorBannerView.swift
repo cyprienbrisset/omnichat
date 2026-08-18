@@ -25,8 +25,15 @@ struct ErrorBannerView: View {
                 RateLimitCountdown(totalSeconds: retryAfter)
             }
 
-            Button(error.retryActionLabel, action: retryAction)
-                .buttonStyle(.omniLink)
+            // Retrying with the same rejected key just fails again — the
+            // mockup's 401 card links to Settings instead of a no-op retry.
+            if case .authenticationFailed = error {
+                SettingsLink { Text("Ouvrir les réglages") }
+                    .buttonStyle(.omniLink)
+            } else {
+                Button(error.retryActionLabel, action: retryAction)
+                    .buttonStyle(.omniLink)
+            }
         }
         .padding(14)
         .background(OmniTheme.paperMuted)
