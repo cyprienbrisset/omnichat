@@ -207,9 +207,19 @@ struct ChatView: View {
     /// A row of tracked mono tags — the print-shop's substitute for a
     /// segmented control — switching what the composer sends to. Sized to
     /// match the mockup's composer toolbar (small caps, hairline underline).
+    /// Only offers a generation mode the server actually has a model for —
+    /// `.text` is always available (chat has no "no model configured"
+    /// failure mode the way media generation does).
+    private var availableModes: [ComposerMode] {
+        ComposerMode.allCases.filter { candidate in
+            guard let mediaKind = candidate.mediaKind else { return true }
+            return appEnvironment.availableMediaKinds.contains(mediaKind)
+        }
+    }
+
     private var modeSelector: some View {
         HStack(spacing: 14) {
-            ForEach(ComposerMode.allCases) { candidate in
+            ForEach(availableModes) { candidate in
                 Button {
                     mode = candidate
                 } label: {

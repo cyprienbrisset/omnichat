@@ -29,6 +29,11 @@ final class AppEnvironment {
     private(set) var managementAccessState: ManagementAccessState = .unknown
     private(set) var catalogSummary: CatalogSummary?
     private(set) var monitoringHealth: MonitoringHealth?
+    /// Media kinds this server actually has at least one real model for —
+    /// starts empty (nothing shown) rather than assuming availability, so
+    /// the composer never offers a generation mode that's guaranteed to
+    /// fail with "no model configured".
+    private(set) var availableMediaKinds: Set<MediaKind> = []
     /// Passages the user picked from local search (`RAGView`) to attach as
     /// context to their *next* outgoing message — one-shot, cleared by
     /// `ChatView` right after it reads them into the request.
@@ -126,5 +131,31 @@ final class AppEnvironment {
         guard managementAccessState == .available else { return }
         let client = OmniRouteClient(profile: activeProfile, credentialStore: credentialStore)
         monitoringHealth = try? await client.fetchMonitoringHealth()
+    }
+
+    /// Real per-kind availability, confirmed against each generation
+    /// endpoint's own catalog (`listImageModels()` etc.) — never inferred
+    /// from `/v1/models` alone, since a server can list e.g. embedding
+    /// models without having any image provider configured. A failed or
+    /// empty catalog for a kind simply means it stays out of the set;
+    /// this never surfaces as an error banner.
+    @MainActor
+    func refreshAvailableMediaKinds() async {
+        let client = OmniRouteClient(profile: activeProfile, credentialStore: credentialStore)
+        async let imagesTask: [ModelInfo]? = try? client.listImageModels()
+        async let videosTask: [ModelInfo]? = try? client.listVideoModels()
+        async let musicTask: [ModelInfo]? = try? client.listMusicModels()
+        async let speechTask: [ModelInfo]? = try? client.listSpeechModels()
+        let images = await imagesTask
+        let videos = await videosTask
+        let music = await musicTask
+        let speech = await speechTask
+
+        var kinds: Set<MediaKind> = []
+        if let images, !images.isEmpty { kinds.insert(.image) }
+        if let videos, !videos.isEmpty { kinds.insert(.video) }
+        if let music, !music.isEmpty { kinds.insert(.music) }
+        if let speech, !speech.isEmpty { kinds.insert(.speech) }
+        availableMediaKinds = kinds
     }
 }

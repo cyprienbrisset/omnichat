@@ -96,6 +96,30 @@ Pendant la génération, un squelette animé (au format réel de la sortie
 attendue — image/vidéo/audio) remplace la simple icône qui clignotait
 auparavant.
 
+**Autre correctif confirmé empiriquement :** un serveur peut lister un
+modèle dans son propre catalogue (`GET /v1/images/generations` par
+exemple) dont la route de génération renvoie quand même un vrai `404`
+(constaté en direct sur une entrée Fireworks précise) — un problème
+d'enregistrement côté fournisseur, pas quelque chose qu'un simple « prendre
+le premier de la liste » peut masquer. OmniChat essaie donc jusqu'à 5
+modèles candidats du catalogue dans l'ordre, et ne passe au suivant que
+sur ce `404` précis — toute autre erreur (auth, quota, budget, politique de
+contenu) est réelle et remonte immédiatement, sans nouvelle tentative
+inutile qui la masquerait.
+
+Le composeur ne propose désormais un mode de génération (Image/Vidéo/
+Musique/Voix) que si le serveur a réellement au moins un modèle pour ce
+type — plus jamais de bouton menant systématiquement à une erreur
+« aucun modèle disponible ».
+
+Enfin, le casier ⌘K (sélection de modèle pour le chat et la comparaison)
+filtre désormais `/v1/models` pour ne garder que les modèles de chat et
+les combos : ce catalogue mélange en réalité chat, embeddings, images,
+vidéo, audio, rerank et modération (confirmé en direct — `/v1/models`
+« Returns all chat, embedding, and image models + combos »), et choisir
+par erreur un modèle non-chat y échouait avec un vrai 400/404 côté serveur
+(`"is an image-generation model and cannot be used on /v1/chat/completions"`).
+
 ## Gestion des conversations
 
 Trois vues commutables depuis des icônes dédiées du rail (inspiré de

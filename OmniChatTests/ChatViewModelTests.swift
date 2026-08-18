@@ -90,34 +90,39 @@ private final class FakeMediaGenerating: MediaGenerating, @unchecked Sendable {
     }
 
     var outcome: Outcome = .success(.inlineData(Data("fake".utf8), contentType: "image/png"))
+    /// Per-model override, checked before the blanket `outcome` — lets a
+    /// test simulate one catalog entry 404ing and a later one succeeding.
+    var outcomesByModel: [String: Outcome] = [:]
+    var catalog = [ModelInfo(id: "fake/model", ownedBy: "fake")]
     private(set) var lastPrompt: String?
+    private(set) var attemptedModelIDs: [String] = []
 
-    private func resolve(_ prompt: String) throws -> MediaGenerationResult {
+    private func resolve(_ prompt: String, modelID: String) throws -> MediaGenerationResult {
         lastPrompt = prompt
-        switch outcome {
+        attemptedModelIDs.append(modelID)
+        switch outcomesByModel[modelID] ?? outcome {
         case .success(let result): return result
         case .failure(let error): throw error
         }
     }
 
     func generateImage(_ request: MediaGenerationRequest) async throws -> MediaGenerationResult {
-        try resolve(request.prompt)
+        try resolve(request.prompt, modelID: request.model)
     }
     func generateVideo(_ request: MediaGenerationRequest) async throws -> MediaGenerationResult {
-        try resolve(request.prompt)
+        try resolve(request.prompt, modelID: request.model)
     }
     func generateMusic(_ request: MediaGenerationRequest) async throws -> MediaGenerationResult {
-        try resolve(request.prompt)
+        try resolve(request.prompt, modelID: request.model)
     }
     func synthesizeSpeech(_ request: SpeechRequest) async throws -> MediaGenerationResult {
-        try resolve(request.input)
+        try resolve(request.input, modelID: request.model)
     }
 
-    private let fakeCatalog = [ModelInfo(id: "fake/model", ownedBy: "fake")]
-    func listImageModels() async throws -> [ModelInfo] { fakeCatalog }
-    func listVideoModels() async throws -> [ModelInfo] { fakeCatalog }
-    func listMusicModels() async throws -> [ModelInfo] { fakeCatalog }
-    func listSpeechModels() async throws -> [ModelInfo] { fakeCatalog }
+    func listImageModels() async throws -> [ModelInfo] { catalog }
+    func listVideoModels() async throws -> [ModelInfo] { catalog }
+    func listMusicModels() async throws -> [ModelInfo] { catalog }
+    func listSpeechModels() async throws -> [ModelInfo] { catalog }
 }
 
 @MainActor
@@ -366,6 +371,53 @@ final class ChatViewModelTests: XCTestCase {
         let assistantMessage = conversation.orderedMessages.last
         XCTAssertEqual(assistantMessage?.mediaItem?.kind, "image")
         XCTAssertNil(viewModel.currentError)
+    }
+
+    /// Confirmed live: a server can list a model in its own image-generation
+    /// catalog whose generation route still 404s — a provider-registration
+    /// quirk, not something a fixed "pick the first one" can paper over.
+    func test_sendMediaPrompt_firstCandidateNotFound_retriesNextCandidate() async throws {
+        let context = try makeContext()
+        let conversation = Conversation(title: "Test", defaultModelID: "auto")
+        context.insert(conversation)
+        let fakeChat = FakeChatCompleting(deltas: [], error: nil)
+        let fakeMedia = FakeMediaGenerating()
+        fakeMedia.catalog = [
+            ModelInfo(id: "broken/model", ownedBy: "broken", type: "image"),
+            ModelInfo(id: "working/model", ownedBy: "working", type: "image"),
+        ]
+        fakeMedia.outcomesByModel = [
+            "broken/model": .failure(OmniRouteError.invalidResponse(statusCode: 404)),
+            "working/model": .success(.inlineData(Data("fake".utf8), contentType: "image/png")),
+        ]
+        let viewModel = makeViewModel(conversation: conversation, client: fakeChat, context: context, mediaClient: fakeMedia)
+
+        await viewModel.sendMediaPrompt("un chat", kind: .image)
+
+        XCTAssertNil(viewModel.currentError)
+        XCTAssertEqual(fakeMedia.attemptedModelIDs, ["broken/model", "working/model"])
+        XCTAssertEqual(conversation.orderedMessages.last?.mediaItem?.modelID, "working/model")
+    }
+
+    func test_sendMediaPrompt_nonNotFoundError_doesNotRetryOtherCandidates() async throws {
+        let context = try makeContext()
+        let conversation = Conversation(title: "Test", defaultModelID: "auto")
+        context.insert(conversation)
+        let fakeChat = FakeChatCompleting(deltas: [], error: nil)
+        let fakeMedia = FakeMediaGenerating()
+        fakeMedia.catalog = [
+            ModelInfo(id: "no-budget/model", ownedBy: "x", type: "image"),
+            ModelInfo(id: "unreached/model", ownedBy: "x", type: "image"),
+        ]
+        fakeMedia.outcomesByModel = [
+            "no-budget/model": .failure(OmniRouteError.rateLimited(retryAfterSeconds: nil)),
+        ]
+        let viewModel = makeViewModel(conversation: conversation, client: fakeChat, context: context, mediaClient: fakeMedia)
+
+        await viewModel.sendMediaPrompt("un chat", kind: .image)
+
+        XCTAssertNotNil(viewModel.currentError)
+        XCTAssertEqual(fakeMedia.attemptedModelIDs, ["no-budget/model"])
     }
 
     func test_retryLastMessage_afterFailedMediaPrompt_retriesSameKind() async throws {

@@ -139,7 +139,16 @@ struct ModelPickerView: View {
     private func loadModels() async {
         let client = OmniRouteClient(profile: appEnvironment.activeProfile, credentialStore: appEnvironment.credentialStore)
         do {
-            models = try await client.listModels().sorted { $0.id < $1.id }
+            // `/v1/models` lists chat, embedding, image, video, audio,
+            // rerank, and moderation models together (confirmed live) —
+            // picking one of the non-chat types here fails with a real
+            // 400/404 on `/v1/chat/completions` ("is an image-generation
+            // model and cannot be used on /v1/chat/completions", etc.).
+            // Combos and plain chat models carry no `type` field; only
+            // those belong in a chat model picker.
+            models = try await client.listModels()
+                .filter { $0.type == nil }
+                .sorted { $0.id < $1.id }
             loadState = .loaded
         } catch let error as OmniRouteError {
             loadState = .failed(error.userMessage)

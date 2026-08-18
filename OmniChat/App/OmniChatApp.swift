@@ -23,6 +23,7 @@ struct OmniChatApp: App {
             await environment.refreshMonitoringHealth()
         }
         Task { await environment.refreshCatalogSummary() }
+        Task { await environment.refreshAvailableMediaKinds() }
     }
 
     var body: some Scene {

@@ -225,21 +225,49 @@ final class ChatViewModel {
     /// alias (confirmed live: `"Invalid image model: auto. Use format:
     /// provider/model"`, same for video/music/speech) — so this resolves a
     /// real model id from the server's own catalog for each kind first.
+    ///
+    /// Confirmed live: a server can list a model in that very catalog whose
+    /// generation route still 404s (`"Path not found: /v1/images/
+    /// generations"` for a specific Fireworks entry, even though the
+    /// catalog GET itself succeeds) — a provider-registration quirk on
+    /// OmniRoute's side, not something a fixed "pick the first one" can
+    /// paper over. So this tries a few real candidates in order and only
+    /// moves to the next on that exact 404 shape; any other error (auth,
+    /// budget, rate limit, content policy) is real and surfaces immediately
+    /// rather than masking it behind a pointless retry.
     private func generate(kind: MediaKind, prompt: String) async throws -> (MediaGenerationResult, modelID: String) {
-        let modelID = try await resolveMediaModelID(for: kind)
+        let candidates = try await mediaModelCandidates(for: kind)
+        guard !candidates.isEmpty else {
+            throw OmniRouteError.unknown(description: "Aucun modèle disponible pour la génération (\(kind.label.lowercased())) sur ce serveur.")
+        }
+        var lastNotFoundError: OmniRouteError?
+        for modelID in candidates.prefix(5) {
+            do {
+                return (try await performMediaGeneration(kind: kind, modelID: modelID, prompt: prompt), modelID)
+            } catch let error as OmniRouteError {
+                guard case .invalidResponse(let statusCode) = error, statusCode == 404 else { throw error }
+                lastNotFoundError = error
+            }
+        }
+        throw lastNotFoundError ?? OmniRouteError.unknown(
+            description: "Aucun modèle disponible pour la génération (\(kind.label.lowercased())) sur ce serveur."
+        )
+    }
+
+    private func performMediaGeneration(kind: MediaKind, modelID: String, prompt: String) async throws -> MediaGenerationResult {
         switch kind {
         case .image:
-            return (try await mediaClient.generateImage(MediaGenerationRequest(model: modelID, prompt: prompt)), modelID)
+            return try await mediaClient.generateImage(MediaGenerationRequest(model: modelID, prompt: prompt))
         case .video:
-            return (try await mediaClient.generateVideo(MediaGenerationRequest(model: modelID, prompt: prompt)), modelID)
+            return try await mediaClient.generateVideo(MediaGenerationRequest(model: modelID, prompt: prompt))
         case .music:
-            return (try await mediaClient.generateMusic(MediaGenerationRequest(model: modelID, prompt: prompt)), modelID)
+            return try await mediaClient.generateMusic(MediaGenerationRequest(model: modelID, prompt: prompt))
         case .speech:
-            return (try await mediaClient.synthesizeSpeech(SpeechRequest(model: modelID, input: prompt)), modelID)
+            return try await mediaClient.synthesizeSpeech(SpeechRequest(model: modelID, input: prompt))
         }
     }
 
-    private func resolveMediaModelID(for kind: MediaKind) async throws -> String {
+    private func mediaModelCandidates(for kind: MediaKind) async throws -> [String] {
         let models: [ModelInfo]
         switch kind {
         case .image: models = try await mediaClient.listImageModels()
@@ -247,10 +275,7 @@ final class ChatViewModel {
         case .music: models = try await mediaClient.listMusicModels()
         case .speech: models = try await mediaClient.listSpeechModels()
         }
-        guard let first = models.first else {
-            throw OmniRouteError.unknown(description: "Aucun modèle disponible pour la génération (\(kind.label.lowercased())) sur ce serveur.")
-        }
-        return first.id
+        return models.map(\.id)
     }
 
     /// Resends the last user message without re-sending an empty draft.

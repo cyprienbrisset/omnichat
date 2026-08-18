@@ -1,6 +1,6 @@
 import Foundation
 
-enum MediaKind: String, CaseIterable, Identifiable {
+enum MediaKind: String, CaseIterable, Identifiable, Hashable {
     case image, video, music, speech
 
     var id: String { rawValue }
