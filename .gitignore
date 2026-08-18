@@ -4,6 +4,9 @@
 # Scratch workspace for Subagent-Driven Development (ledgers, briefs, reports)
 .superpowers/
 
+# Nimbalyst editor scratch (e.g. browser reference screenshots)
+.nimbalyst/
+
 # Xcode / SwiftPM build artifacts
 .build/
 .swiftpm/
