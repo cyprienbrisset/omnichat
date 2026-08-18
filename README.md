@@ -297,3 +297,15 @@ OmniRoute auto-hébergées (localhost, IP nue derrière un reverse-proxy sans
 TLS) n'ont pas de certificat, et App Transport Security les bloquerait
 sinon par défaut, avec une erreur réseau générique ne mentionnant jamais
 la vraie cause.
+
+Si la clé a les droits de gestion, les Réglages (élargis à 620 pt) affichent
+aussi une section « Fournisseurs » avec les vrais chiffres de
+`/api/monitoring/health` (actifs / catalogue / configurés). **Constaté en
+direct sur une instance réelle : un serveur peut n'avoir que ~25
+fournisseurs configurés sur ~300 au catalogue.** La grande majorité des
+modèles proposés partout dans l'app (chat, comparaison, génération média)
+appartiennent alors à des fournisseurs sans identifiants configurés sur ce
+serveur OmniRoute — les choisir échoue avec une vraie erreur serveur
+(souvent un 404, parfois un 400/402/403 selon le fournisseur), qui n'est
+pas un bug d'OmniChat mais un fournisseur non activé côté OmniRoute. Cette
+section aide à distinguer immédiatement les deux cas.
