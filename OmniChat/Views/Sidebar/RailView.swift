@@ -9,6 +9,12 @@ struct RailView: View {
     let isMCPSelected: Bool
     let isRAGSelected: Bool
     let isComparisonSelected: Bool
+    let isAdminSelected: Bool
+    /// Only true once the active key is confirmed to carry management
+    /// scope — this entry point changes the connected server's real
+    /// configuration, so it doesn't appear at all for a key that can't
+    /// use it (rather than appearing and failing with an auth error).
+    let showsAdmin: Bool
     let catalogSummary: CatalogSummary?
     let onNewConversation: () -> Void
     let onSelectGallery: () -> Void
@@ -16,6 +22,7 @@ struct RailView: View {
     let onSelectMCP: () -> Void
     let onSelectRAG: () -> Void
     let onSelectComparison: () -> Void
+    let onSelectAdmin: () -> Void
 
     var body: some View {
         VStack(spacing: 18) {
@@ -50,7 +57,7 @@ struct RailView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(
                             !isGallerySelected && !isMemorySelected && !isMCPSelected && !isRAGSelected
-                                && !isComparisonSelected && mode == candidate
+                                && !isComparisonSelected && !isAdminSelected && mode == candidate
                                 ? OmniTheme.accent : OmniTheme.railText.opacity(0.7)
                         )
                 }
@@ -97,6 +104,16 @@ struct RailView: View {
             }
             .buttonStyle(.plain)
             .help("Comparaison")
+
+            if showsAdmin {
+                Button(action: onSelectAdmin) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(isAdminSelected ? OmniTheme.accent : OmniTheme.railText.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+                .help("Administration")
+            }
 
             Spacer()
 

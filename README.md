@@ -22,10 +22,13 @@ compatible OpenAI.
 > `tool_calls` OpenAI confirmés sur `/v1/chat/completions`, outils exécutés
 > par OmniChat lui-même — jamais via le serveur MCP d'OmniRoute, inaccessible
 > à distance), comparaison multi-modèles côte à côte (prompt unique, N flux
-> réels indépendants), menu bar + fenêtre principale. RAG documentaire
-> (import de fichiers), A2A, OCR, transcription audio et gestion des
-> combos/routage/compression ne sont pas encore implémentés (voir le spec
-> pour le périmètre complet).
+> réels indépendants), retour possible au routage automatique (« auto »)
+> après sélection d'un modèle précis dans une conversation, panneau
+> Administration (fournisseurs, budgets, limites de jetons — visible
+> uniquement si la clé a les droits de gestion), menu bar + fenêtre
+> principale. RAG documentaire (import de fichiers), A2A, OCR, transcription
+> audio et gestion des combos/routage/compression ne sont pas encore
+> implémentés (voir le spec pour le périmètre complet).
 
 ## Ce que fait OmniChat
 
@@ -256,6 +259,39 @@ affiche ses propres jetons/coût/latence une fois reçus. Volontairement
 éphémère : rien n'est persisté comme conversation — changer d'écran perd
 les colonnes. Aucune notion de « combo » ou de juge ici, contrairement au
 mockup 3b (Fusion) : c'est une comparaison brute, pas une synthèse.
+
+## Administration (paramétrage OmniRoute via l'API de gestion)
+
+Nouvelle icône du rail (curseurs), visible **uniquement** si la clé active a
+les droits de gestion (`managementAccessState == .available`, même garde
+que Mémoire/MCP) — une clé sans ces droits ne voit pas l'entrée du tout,
+plutôt que de la voir échouer avec une erreur d'auth. Trois écrans :
+
+- **Fournisseurs** (`GET/DELETE /api/providers`, `POST
+  /api/providers/{id}/test`) — liste brute clé/valeur (comme MCP : la forme
+  exacte n'est documentée qu'en prose, pas de noms de champs garantis),
+  bouton « Tester » par fournisseur, suppression avec confirmation. La
+  création (`POST /api/providers`) envoie un corps au mieux
+  (`{name, provider, apiKey}`) : **la forme réelle attendue n'est pas
+  documentée** dans la référence d'API. L'écran d'ajout le dit explicitement
+  et, si le serveur refuse ces champs, affiche son vrai message d'erreur
+  Zod (`throwWithServerMessage`) plutôt qu'un « requête invalide »
+  générique — pour corriger le corps en connaissance de cause plutôt que de
+  deviner à l'aveugle.
+- **Budget** (`GET/POST /api/usage/budget`) — schéma entièrement documenté
+  (Zod) dans la référence d'API : `apiKeyId` + au moins une limite parmi
+  jour/semaine/mois, seuil d'alerte optionnel, intervalle de réinitialisation.
+- **Limites de jetons** (`GET/POST/DELETE /api/usage/token-limits`) — schéma
+  documenté : portée `model`/`provider`/`global`, valeur de portée, limite,
+  activable/désactivable ; la lecture enrichit avec `tokensUsed`/`remaining`/
+  `nextResetAt` réels.
+
+Contrairement aux autres écrans de gestion (Mémoire, MCP), ce panneau
+**modifie** la configuration réelle du serveur connecté (au lieu de
+seulement la lire) — d'où la garde d'accès stricte et le choix de toujours
+remonter le message d'erreur serveur réel plutôt qu'un message générique,
+surtout là où le corps de requête est une hypothèse plutôt qu'un fait
+documenté.
 
 ## Sous-projets liés
 

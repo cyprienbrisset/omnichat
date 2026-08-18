@@ -7,6 +7,7 @@ private enum DetailOverlay {
     case mcp
     case rag
     case comparison
+    case admin
 }
 
 struct ContentView: View {
@@ -55,13 +56,16 @@ struct ContentView: View {
                 isMCPSelected: detailOverlay == .mcp,
                 isRAGSelected: detailOverlay == .rag,
                 isComparisonSelected: detailOverlay == .comparison,
+                isAdminSelected: detailOverlay == .admin,
+                showsAdmin: appEnvironment.managementAccessState == .available,
                 catalogSummary: appEnvironment.catalogSummary,
                 onNewConversation: createConversation,
                 onSelectGallery: { detailOverlay = .gallery },
                 onSelectMemory: { detailOverlay = .memory },
                 onSelectMCP: { detailOverlay = .mcp },
                 onSelectRAG: { detailOverlay = .rag },
-                onSelectComparison: { detailOverlay = .comparison }
+                onSelectComparison: { detailOverlay = .comparison },
+                onSelectAdmin: { detailOverlay = .admin }
             )
             registerPanel
                 .frame(width: 300)
@@ -80,6 +84,8 @@ struct ContentView: View {
                     RAGView()
                 case .comparison:
                     ComparisonView()
+                case .admin:
+                    AdminView()
                 case nil:
                     if let selectedConversation {
                         ChatView(conversation: selectedConversation)
