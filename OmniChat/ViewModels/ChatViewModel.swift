@@ -32,6 +32,7 @@ final class ChatViewModel {
 
     func send(_ text: String) async {
         currentError = nil
+        persistenceError = nil
         let userMessage = Message(role: "user", content: text)
         userMessage.conversation = conversation
         conversation.messages.append(userMessage)
@@ -70,7 +71,9 @@ final class ChatViewModel {
             try context.save()
         } catch {
             persistenceError = "Impossible d'enregistrer la conversation : \(error.localizedDescription)"
+            return
         }
+        persistenceError = nil
     }
 
     /// Resends the last user message without re-sending an empty draft.
