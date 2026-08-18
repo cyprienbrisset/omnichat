@@ -118,3 +118,33 @@ func parseMCPRawSnapshot(_ data: Data) throws -> MCPRawSnapshot {
     }
     return MCPRawSnapshot(fields: fields)
 }
+
+/// `/api/mcp/audit` entries — like the status/audit-stats snapshot, no
+/// per-row field shape is documented, so this decodes each row as a raw
+/// object rather than guessing column names, and tries the same set of
+/// plausible list wrappers as `parseMCPToolListResponse`.
+func parseMCPAuditListResponse(_ data: Data) throws -> [MCPRawSnapshot] {
+    func objects(from values: [JSONValue]) throws -> [MCPRawSnapshot] {
+        try values.map { value in
+            guard case .object(let fields) = value else { throw MCPResponseParsingError.unrecognizedShape }
+            return MCPRawSnapshot(fields: fields)
+        }
+    }
+    let decoder = JSONDecoder()
+    if let direct = try? decoder.decode([JSONValue].self, from: data) {
+        return try objects(from: direct)
+    }
+    struct DataWrapper: Decodable { let data: [JSONValue] }
+    if let wrapped = try? decoder.decode(DataWrapper.self, from: data) {
+        return try objects(from: wrapped.data)
+    }
+    struct EntriesWrapper: Decodable { let entries: [JSONValue] }
+    if let wrapped = try? decoder.decode(EntriesWrapper.self, from: data) {
+        return try objects(from: wrapped.entries)
+    }
+    struct LogsWrapper: Decodable { let logs: [JSONValue] }
+    if let wrapped = try? decoder.decode(LogsWrapper.self, from: data) {
+        return try objects(from: wrapped.logs)
+    }
+    throw MCPResponseParsingError.unrecognizedShape
+}

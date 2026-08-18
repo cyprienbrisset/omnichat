@@ -35,4 +35,23 @@ final class MCPModelsTests: XCTestCase {
     func test_parseMCPRawSnapshot_nonObjectTopLevel_throws() {
         XCTAssertThrowsError(try parseMCPRawSnapshot(Data("[1,2,3]".utf8)))
     }
+
+    func test_parseMCPAuditListResponse_parsesBareArrayOfRawObjects() throws {
+        let json = #"[{"tool":"web_search","success":true,"durationMs":84}]"#
+        let entries = try parseMCPAuditListResponse(Data(json.utf8))
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries[0].fields["tool"], .string("web_search"))
+        XCTAssertEqual(entries[0].fields["success"], .bool(true))
+    }
+
+    func test_parseMCPAuditListResponse_parsesDataWrapper() throws {
+        let json = #"{"data":[{"tool":"quota_status"}]}"#
+        let entries = try parseMCPAuditListResponse(Data(json.utf8))
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries[0].fields["tool"], .string("quota_status"))
+    }
+
+    func test_parseMCPAuditListResponse_unrecognizedShape_throws() {
+        XCTAssertThrowsError(try parseMCPAuditListResponse(Data(#"{"nope":true}"#.utf8)))
+    }
 }

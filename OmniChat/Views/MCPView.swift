@@ -10,6 +10,7 @@ struct MCPView: View {
     @State private var status: MCPRawSnapshot?
     @State private var tools: [MCPTool] = []
     @State private var auditStats: MCPRawSnapshot?
+    @State private var auditEntries: [MCPRawSnapshot] = []
     @State private var loadState: LoadState = .idle
 
     private enum LoadState: Equatable {
@@ -65,6 +66,7 @@ struct MCPView: View {
                     if let auditStats {
                         section(title: "Statistiques d'audit", snapshot: auditStats)
                     }
+                    auditLogSection
                 }
             }
         }
@@ -162,6 +164,46 @@ struct MCPView: View {
         }
     }
 
+    /// A real, retrospective log of tool calls actually made against this
+    /// server's MCP transports (any client, not just OmniChat). This is
+    /// deliberately not a "tool call happened inline in this conversation"
+    /// card — OmniChat doesn't yet implement an agentic tool-use loop
+    /// against `/v1/chat/completions`, since the API reference doesn't
+    /// document `tools`/`tool_calls` support there, and showing a fabricated
+    /// in-thread card would misrepresent what actually happened.
+    private var auditLogSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionHeader("Activité récente (\(auditEntries.count))")
+            if auditEntries.isEmpty {
+                Text("Aucun appel d'outil enregistré.")
+                    .font(OmniTheme.serif(13).italic())
+                    .foregroundStyle(OmniTheme.inkSoft)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 12)
+            } else {
+                ForEach(Array(auditEntries.enumerated()), id: \.offset) { _, entry in
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(entry.sortedEntries, id: \.key) { field in
+                            HStack(alignment: .top, spacing: 8) {
+                                Text(field.key)
+                                    .font(OmniTheme.mono(9, weight: .semibold))
+                                    .foregroundStyle(OmniTheme.inkSoft)
+                                    .frame(width: 110, alignment: .leading)
+                                Text(field.value)
+                                    .font(OmniTheme.mono(10))
+                                    .foregroundStyle(OmniTheme.ink)
+                                Spacer()
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 8)
+                    Rectangle().fill(OmniTheme.hairline).frame(height: 1)
+                }
+            }
+        }
+    }
+
     private func refresh() async {
         guard appEnvironment.managementAccessState == .available else {
             loadState = appEnvironment.managementAccessState == .unavailable ? .unavailable : .idle
@@ -172,10 +214,12 @@ struct MCPView: View {
         do {
             async let statusResult = client.fetchMCPStatus()
             async let toolsResult = client.listMCPTools()
-            async let auditResult = client.fetchMCPAuditStats()
+            async let auditStatsResult = client.fetchMCPAuditStats()
+            async let auditLogResult = client.fetchMCPAudit(limit: 20)
             status = try await statusResult
             tools = try await toolsResult
-            auditStats = try await auditResult
+            auditStats = try await auditStatsResult
+            auditEntries = try await auditLogResult
             loadState = .loaded
         } catch let error as OmniRouteError {
             loadState = .failed(error.userMessage)

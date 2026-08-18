@@ -73,4 +73,23 @@ final class OmniRouteClientMCPTests: XCTestCase {
         XCTAssertEqual(stats.fields["totalCalls"], .number(42))
         XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/api/mcp/audit/stats"))
     }
+
+    func test_fetchMCPAudit_success_sendsLimitQueryParam() async throws {
+        let profile = EndpointProfile(id: UUID(), name: "Test", baseURL: URL(string: "https://omniroute.online/v1")!)
+        let store = InMemoryCredentialStore()
+        var capturedURL: URL?
+        MockURLProtocol.requestHandler = { request in
+            capturedURL = request.url
+            let json = #"[{"tool":"web_search","success":true}]"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+        let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
+
+        let entries = try await client.fetchMCPAudit(limit: 10)
+
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries[0].fields["tool"], .string("web_search"))
+        XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/api/mcp/audit?limit=10"))
+    }
 }

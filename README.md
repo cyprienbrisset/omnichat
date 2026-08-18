@@ -101,14 +101,26 @@ essaie plusieurs formes plausibles (tableau nu, `{data:[...]}`,
 ## Serveur MCP (API de gestion)
 
 Icône dédiée du rail ouvrant un navigateur du serveur MCP embarqué
-d'OmniRoute (`GET /api/mcp/status`, `/api/mcp/tools`, `/api/mcp/audit/stats`),
-même garde d'accès et même clé que la Mémoire. La forme JSON exacte du
-statut et des stats d'audit n'est documentée qu'en prose dans la référence
-d'API (pas de noms de champs) — plutôt que de deviner des clés et risquer
-d'afficher une donnée réelle sous une mauvaise étiquette, ces deux réponses
-sont affichées telles quelles (liste brute clé/valeur triée). Seule la
-liste des outils (`name`, `description`, `scopes`, `phase`, `auditLevel`,
-`sourceEndpoints`) a une forme documentée et un rendu dédié.
+d'OmniRoute (`GET /api/mcp/status`, `/api/mcp/tools`, `/api/mcp/audit/stats`,
+`/api/mcp/audit`), même garde d'accès et même clé que la Mémoire. La forme
+JSON exacte du statut, des stats d'audit et des entrées d'audit n'est
+documentée qu'en prose dans la référence d'API (pas de noms de champs) —
+plutôt que de deviner des clés et risquer d'afficher une donnée réelle sous
+une mauvaise étiquette, ces réponses sont affichées telles quelles (liste
+brute clé/valeur triée). Seule la liste des outils (`name`, `description`,
+`scopes`, `phase`, `auditLevel`, `sourceEndpoints`) a une forme documentée
+et un rendu dédié.
+
+Le journal d'audit (« Activité récente ») montre les appels d'outils MCP
+*réellement* effectués contre ce serveur, par n'importe quel client — ce
+n'est **pas** une carte d'appel affichée en direct dans le fil de
+conversation. OmniChat n'implémente pas (encore) de boucle d'appel d'outils
+agentique sur `/v1/chat/completions` : la référence d'API ne documente
+aucun support `tools`/`tool_calls` de type OpenAI sur cette route malgré la
+compatibilité OpenAI annoncée, donc afficher une carte d'appel en direct
+dans le fil serait fabriquer une interaction qui n'a pas lieu. Un
+écran de permissions par portée n'aurait de sens qu'une fois cette boucle
+réellement construite et confirmée contre un serveur accessible.
 
 ## Recherche locale (RAG sur l'historique)
 
