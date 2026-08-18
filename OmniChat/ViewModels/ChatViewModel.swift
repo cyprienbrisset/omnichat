@@ -17,7 +17,10 @@ final class ChatViewModel {
     private let context: ModelContext
     private let diagnosticLogger: DiagnosticLogger
     private let endpointName: String
-    private var lastAttemptKind: MediaKind?
+    /// The kind of the most recent attempt — `nil` for text. Read by the
+    /// view while `isStreaming` to pick which loading animation to show,
+    /// and by `retryLastMessage()` to know which path to re-dispatch.
+    private(set) var lastAttemptKind: MediaKind?
 
     init(
         conversation: Conversation,
