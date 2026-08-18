@@ -79,6 +79,33 @@ extension ButtonStyle where Self == OmniPrimaryButtonStyle {
     static var omniPrimary: OmniPrimaryButtonStyle { OmniPrimaryButtonStyle() }
 }
 
+/// User-facing override for the app's appearance, independent of the macOS
+/// system setting.
+enum ThemePreference: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    /// `nil` lets SwiftUI fall back to the system appearance.
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .system: return "Système"
+        case .light: return "Clair"
+        case .dark: return "Sombre"
+        }
+    }
+}
+
 /// A very subtle dot-grid texture, echoing the backdrop on omniroute.online.
 /// Purely decorative — never intercepts hit testing.
 struct OmniDotGridBackground: View {

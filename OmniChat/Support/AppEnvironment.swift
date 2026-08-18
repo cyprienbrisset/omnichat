@@ -8,6 +8,14 @@ final class AppEnvironment {
     let credentialStore: CredentialStore
     let diagnosticLogger: DiagnosticLogger
 
+    var themePreference: ThemePreference {
+        didSet {
+            UserDefaults.standard.set(themePreference.rawValue, forKey: Self.themePreferenceKey)
+        }
+    }
+
+    private static let themePreferenceKey = "themePreference"
+
     init(
         activeProfile: EndpointProfile = .defaultLocal,
         credentialStore: CredentialStore = KeychainCredentialStore(),
@@ -16,6 +24,8 @@ final class AppEnvironment {
         self.activeProfile = activeProfile
         self.credentialStore = credentialStore
         self.diagnosticLogger = diagnosticLogger
+        self.themePreference = UserDefaults.standard.string(forKey: Self.themePreferenceKey)
+            .flatMap(ThemePreference.init(rawValue:)) ?? .system
     }
 
     static func makeDefaultDiagnosticLogger() -> DiagnosticLogger {

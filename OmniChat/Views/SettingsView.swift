@@ -11,6 +11,18 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            OmniTheme.eyebrow("Apparence")
+
+            Picker("Thème", selection: Bindable(appEnvironment).themePreference) {
+                ForEach(ThemePreference.allCases) { preference in
+                    Text(preference.label).tag(preference)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            Divider()
+
             OmniTheme.eyebrow("Connexion OmniRoute")
 
             VStack(alignment: .leading, spacing: 4) {

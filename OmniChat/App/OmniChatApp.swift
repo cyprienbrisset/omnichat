@@ -22,18 +22,21 @@ struct OmniChatApp: App {
         WindowGroup(id: "main") {
             ContentView()
                 .environment(appEnvironment)
+                .preferredColorScheme(appEnvironment.themePreference.colorScheme)
         }
         .modelContainer(modelContainer)
 
         MenuBarExtra("OmniChat", systemImage: "diamond.fill") {
             MenuBarChatView()
                 .environment(appEnvironment)
+                .preferredColorScheme(appEnvironment.themePreference.colorScheme)
         }
         .modelContainer(modelContainer)
 
         Settings {
             SettingsView()
                 .environment(appEnvironment)
+                .preferredColorScheme(appEnvironment.themePreference.colorScheme)
         }
         .modelContainer(modelContainer)
     }
