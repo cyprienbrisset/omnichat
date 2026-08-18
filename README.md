@@ -79,6 +79,23 @@ l'app, jamais dans un chemin synchronisé iCloud. Ces quatre appels
 (pas de file d'attente/polling), vérifié directement dans le code source
 de l'API avant implémentation.
 
+**Correctif confirmé empiriquement :** ces quatre endpoints rejettent
+l'alias de routage `"auto"` (valide sur `/v1/chat/completions` mais pas
+ici — `"Invalid image model: auto. Use format: provider/model"`, même
+schéma pour vidéo/musique/voix). OmniChat résout désormais un vrai modèle
+avant chaque génération : `GET /v1/images|videos|music/generations`
+renvoie le catalogue réel par type (comme `GET /v1/embeddings`) ; pour la
+voix, qui n'a pas de catalogue dédié (`GET /v1/audio/speech` → `405` en
+direct), les modèles TTS sont filtrés depuis `/v1/models` par
+`type:"audio", subtype:"speech"` (à distinguer de `subtype:"transcription"`,
+inutilisable pour la génération). Si un serveur n'a aucun modèle configuré
+pour un type donné (ex. musique), l'app le dit clairement plutôt que
+d'envoyer une requête vouée à échouer.
+
+Pendant la génération, un squelette animé (au format réel de la sortie
+attendue — image/vidéo/audio) remplace la simple icône qui clignotait
+auparavant.
+
 ## Gestion des conversations
 
 Trois vues commutables depuis des icônes dédiées du rail (inspiré de

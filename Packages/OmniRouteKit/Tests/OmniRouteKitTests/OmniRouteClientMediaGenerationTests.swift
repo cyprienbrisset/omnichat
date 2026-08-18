@@ -41,6 +41,71 @@ final class OmniRouteClientMediaGenerationTests: XCTestCase {
         XCTAssertEqual(result, .remoteURL(URL(string: "https://example.com/song.mp3")!))
     }
 
+    func test_listImageModels_success_decodesRealCatalogShape() async throws {
+        let profile = EndpointProfile(id: UUID(), name: "Test", baseURL: URL(string: "https://omniroute.online/v1")!)
+        let store = InMemoryCredentialStore()
+        var capturedURL: URL?
+        MockURLProtocol.requestHandler = { request in
+            capturedURL = request.url
+            // Shape captured verbatim from a live OmniRoute 3.8.49 instance.
+            let json = #"""
+            {"object":"list","data":[{"id":"fireworks/accounts/fireworks/flux-kontext-max","object":"model","owned_by":"fireworks","type":"image"}]}
+            """#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+        let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
+
+        let models = try await client.listImageModels()
+
+        XCTAssertEqual(models.first?.id, "fireworks/accounts/fireworks/flux-kontext-max")
+        XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/v1/images/generations"))
+    }
+
+    func test_listMusicModels_emptyServerCatalog_returnsEmptyArray() async throws {
+        // Confirmed live: a server with no configured music provider returns
+        // a real empty list, not an error — callers must handle this rather
+        // than assume at least one model always exists.
+        let profile = EndpointProfile.defaultLocal
+        let store = InMemoryCredentialStore()
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(#"{"object":"list","data":[]}"#.utf8))
+        }
+        let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
+
+        let models = try await client.listMusicModels()
+
+        XCTAssertEqual(models, [])
+    }
+
+    func test_listSpeechModels_filtersMainCatalogByAudioSpeechSubtype() async throws {
+        // /v1/audio/speech has no GET catalog of its own (confirmed live:
+        // 405) — speech models are filtered out of /v1/models by
+        // type/subtype instead.
+        let profile = EndpointProfile(id: UUID(), name: "Test", baseURL: URL(string: "https://omniroute.online/v1")!)
+        let store = InMemoryCredentialStore()
+        var capturedURL: URL?
+        MockURLProtocol.requestHandler = { request in
+            capturedURL = request.url
+            let json = #"""
+            {"object":"list","data":[
+                {"id":"openrouter/deepgram/nova-3","owned_by":"openrouter","type":"audio","subtype":"transcription"},
+                {"id":"pollinations/default","owned_by":"pollinations","type":"audio","subtype":"speech"},
+                {"id":"cc/claude-sonnet-5","owned_by":"anthropic"}
+            ]}
+            """#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+        let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
+
+        let models = try await client.listSpeechModels()
+
+        XCTAssertEqual(models.map(\.id), ["pollinations/default"])
+        XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/v1/models"))
+    }
+
     func test_generateImage_401_throwsAuthenticationFailed() async throws {
         let profile = EndpointProfile.defaultLocal
         let store = InMemoryCredentialStore()

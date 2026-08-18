@@ -112,6 +112,12 @@ private final class FakeMediaGenerating: MediaGenerating, @unchecked Sendable {
     func synthesizeSpeech(_ request: SpeechRequest) async throws -> MediaGenerationResult {
         try resolve(request.input)
     }
+
+    private let fakeCatalog = [ModelInfo(id: "fake/model", ownedBy: "fake")]
+    func listImageModels() async throws -> [ModelInfo] { fakeCatalog }
+    func listVideoModels() async throws -> [ModelInfo] { fakeCatalog }
+    func listMusicModels() async throws -> [ModelInfo] { fakeCatalog }
+    func listSpeechModels() async throws -> [ModelInfo] { fakeCatalog }
 }
 
 @MainActor

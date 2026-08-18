@@ -195,9 +195,9 @@ final class ChatViewModel {
         defer { isStreaming = false }
 
         do {
-            let result = try await generate(kind: kind, prompt: text)
+            let (result, modelID) = try await generate(kind: kind, prompt: text)
             let fileName = try await mediaFileStore.save(result, preferredExtension: kind.fileExtension)
-            let mediaItem = MediaItem(kind: kind.rawValue, prompt: text, modelID: "auto", fileName: fileName)
+            let mediaItem = MediaItem(kind: kind.rawValue, prompt: text, modelID: modelID, fileName: fileName)
             mediaItem.conversation = conversation
             context.insert(mediaItem)
             assistantMessage.mediaItem = mediaItem
@@ -221,17 +221,36 @@ final class ChatViewModel {
         persistenceError = nil
     }
 
-    private func generate(kind: MediaKind, prompt: String) async throws -> MediaGenerationResult {
+    /// Media generation endpoints reject the chat-only `"auto"` routing
+    /// alias (confirmed live: `"Invalid image model: auto. Use format:
+    /// provider/model"`, same for video/music/speech) — so this resolves a
+    /// real model id from the server's own catalog for each kind first.
+    private func generate(kind: MediaKind, prompt: String) async throws -> (MediaGenerationResult, modelID: String) {
+        let modelID = try await resolveMediaModelID(for: kind)
         switch kind {
         case .image:
-            return try await mediaClient.generateImage(MediaGenerationRequest(model: "auto", prompt: prompt))
+            return (try await mediaClient.generateImage(MediaGenerationRequest(model: modelID, prompt: prompt)), modelID)
         case .video:
-            return try await mediaClient.generateVideo(MediaGenerationRequest(model: "auto", prompt: prompt))
+            return (try await mediaClient.generateVideo(MediaGenerationRequest(model: modelID, prompt: prompt)), modelID)
         case .music:
-            return try await mediaClient.generateMusic(MediaGenerationRequest(model: "auto", prompt: prompt))
+            return (try await mediaClient.generateMusic(MediaGenerationRequest(model: modelID, prompt: prompt)), modelID)
         case .speech:
-            return try await mediaClient.synthesizeSpeech(SpeechRequest(model: "auto", input: prompt))
+            return (try await mediaClient.synthesizeSpeech(SpeechRequest(model: modelID, input: prompt)), modelID)
         }
+    }
+
+    private func resolveMediaModelID(for kind: MediaKind) async throws -> String {
+        let models: [ModelInfo]
+        switch kind {
+        case .image: models = try await mediaClient.listImageModels()
+        case .video: models = try await mediaClient.listVideoModels()
+        case .music: models = try await mediaClient.listMusicModels()
+        case .speech: models = try await mediaClient.listSpeechModels()
+        }
+        guard let first = models.first else {
+            throw OmniRouteError.unknown(description: "Aucun modèle disponible pour la génération (\(kind.label.lowercased())) sur ce serveur.")
+        }
+        return first.id
     }
 
     /// Resends the last user message without re-sending an empty draft.

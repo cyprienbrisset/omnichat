@@ -34,6 +34,15 @@ public protocol MediaGenerating: Sendable {
     func generateVideo(_ request: MediaGenerationRequest) async throws -> MediaGenerationResult
     func generateMusic(_ request: MediaGenerationRequest) async throws -> MediaGenerationResult
     func synthesizeSpeech(_ request: SpeechRequest) async throws -> MediaGenerationResult
+
+    /// Real per-kind catalogs — confirmed empirically that the media
+    /// generation endpoints reject the chat-only `"auto"` routing alias
+    /// (`"Invalid image model: auto. Use format: provider/model"`), so
+    /// callers must resolve one of these real ids first.
+    func listImageModels() async throws -> [ModelInfo]
+    func listVideoModels() async throws -> [ModelInfo]
+    func listMusicModels() async throws -> [ModelInfo]
+    func listSpeechModels() async throws -> [ModelInfo]
 }
 
 struct MediaGenerationResponse: Decodable {

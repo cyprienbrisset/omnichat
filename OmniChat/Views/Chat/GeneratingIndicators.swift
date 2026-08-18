@@ -7,20 +7,21 @@ struct GeneratingIndicatorView: View {
     let kind: MediaKind?
 
     var body: some View {
-        HStack(spacing: 8) {
-            switch kind {
-            case nil:
+        switch kind {
+        case nil:
+            HStack(spacing: 8) {
                 TypingDotsView()
-            case .image:
-                PulsingIconView(systemImage: "photo")
-            case .video:
-                PulsingIconView(systemImage: "video")
-            case .music, .speech:
-                EqualizerBarsView()
+                Text(label)
+                    .font(OmniTheme.mono(10))
+                    .foregroundStyle(OmniTheme.inkSoft)
             }
-            Text(label)
-                .font(OmniTheme.mono(10))
-                .foregroundStyle(OmniTheme.inkSoft)
+        case .image, .video, .music, .speech:
+            VStack(alignment: .leading, spacing: 6) {
+                MediaSkeletonView(kind: kind!)
+                Text(label)
+                    .font(OmniTheme.mono(10))
+                    .foregroundStyle(OmniTheme.inkSoft)
+            }
         }
     }
 
@@ -55,43 +56,47 @@ struct TypingDotsView: View {
     }
 }
 
-/// A slow breathing icon, for single-shot image/video generation — there's
-/// no natural "wave" to animate for a one-off request, so it just pulses.
-struct PulsingIconView: View {
-    let systemImage: String
-    @State private var isPulsing = false
+/// A placeholder shaped like the media that's actually being generated
+/// (same footprint `MediaContentView` renders once the real file lands),
+/// with a soft shimmer sweeping across it — reads as "something real is
+/// being built here" rather than a generic spinner unrelated to the result.
+struct MediaSkeletonView: View {
+    let kind: MediaKind
+    @State private var shimmerX: CGFloat = -0.6
+
+    private var size: CGSize {
+        switch kind {
+        case .image: CGSize(width: 320, height: 240)
+        case .video: CGSize(width: 360, height: 220)
+        case .music, .speech: CGSize(width: 320, height: 50)
+        }
+    }
 
     var body: some View {
-        Image(systemName: systemImage)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(OmniTheme.accent)
-            .opacity(isPulsing ? 1 : 0.35)
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+            .fill(OmniTheme.paperMuted)
+            .frame(width: size.width, height: size.height)
+            .overlay {
+                GeometryReader { geometry in
+                    LinearGradient(
+                        colors: [.clear, OmniTheme.ink.opacity(0.08), .clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: geometry.size.width * 0.5)
+                    .offset(x: shimmerX * geometry.size.width)
+                }
+                .clipped()
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .stroke(OmniTheme.hairline, lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             .onAppear {
-                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-                    isPulsing = true
+                withAnimation(.linear(duration: 1.3).repeatForever(autoreverses: false)) {
+                    shimmerX = 1.6
                 }
             }
-    }
-}
-
-/// An animated equalizer, for music/speech generation.
-struct EqualizerBarsView: View {
-    @State private var heights: [CGFloat] = [5, 9, 13, 8, 5]
-    private let timer = Timer.publish(every: 0.28, on: .main, in: .common).autoconnect()
-
-    var body: some View {
-        HStack(alignment: .bottom, spacing: 3) {
-            ForEach(heights.indices, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(OmniTheme.accent)
-                    .frame(width: 3, height: heights[index])
-            }
-        }
-        .frame(height: 14, alignment: .bottom)
-        .onReceive(timer) { _ in
-            withAnimation(.easeInOut(duration: 0.28)) {
-                heights = heights.map { _ in CGFloat.random(in: 4...14) }
-            }
-        }
     }
 }
