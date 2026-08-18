@@ -37,7 +37,7 @@ public actor OmniRouteClient {
             } catch {
                 let mapped = Self.mapNetworkingError(error)
                 guard retryPolicy.shouldRetry(attempt: attempt, error: mapped) else { throw mapped }
-                try await Task.sleep(for: .seconds(retryPolicy.delay(forAttempt: attempt, jitter: 0)))
+                try await Task.sleep(for: .seconds(retryPolicy.delay(forAttempt: attempt)))
                 attempt += 1
             }
         }

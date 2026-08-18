@@ -9,14 +9,25 @@ final class ChatViewModel {
     let conversation: Conversation
     private(set) var isStreaming = false
     private(set) var currentError: OmniRouteError?
+    private(set) var persistenceError: String?
 
     private let client: ChatCompleting
     private let context: ModelContext
+    private let diagnosticLogger: DiagnosticLogger
+    private let endpointName: String
 
-    init(conversation: Conversation, client: ChatCompleting, context: ModelContext) {
+    init(
+        conversation: Conversation,
+        client: ChatCompleting,
+        context: ModelContext,
+        diagnosticLogger: DiagnosticLogger,
+        endpointName: String
+    ) {
         self.conversation = conversation
         self.client = client
         self.context = context
+        self.diagnosticLogger = diagnosticLogger
+        self.endpointName = endpointName
     }
 
     func send(_ text: String) async {
@@ -32,10 +43,13 @@ final class ChatViewModel {
         isStreaming = true
         defer { isStreaming = false }
 
-        let history = conversation.messages.dropLast().map {
-            ChatMessage(role: ChatRole(rawValue: $0.role) ?? .user, content: $0.content)
-        }
-        let request = ChatCompletionRequest(model: conversation.defaultModelID, messages: Array(history))
+        // `orderedMessages` is the single source of truth for chronological
+        // order (SwiftData's to-many relationship is unordered); exclude the
+        // fresh assistant placeholder by identity, not by array position.
+        let history = conversation.orderedMessages
+            .filter { $0.persistentModelID != assistantMessage.persistentModelID }
+            .map { ChatMessage(role: ChatRole(rawValue: $0.role) ?? .user, content: $0.content) }
+        let request = ChatCompletionRequest(model: conversation.defaultModelID, messages: history)
 
         do {
             for try await delta in client.streamChatCompletion(request) {
@@ -44,15 +58,69 @@ final class ChatViewModel {
         } catch let error as OmniRouteError {
             assistantMessage.isIncomplete = true
             currentError = error
+            await logDiagnostic(error)
         } catch {
             assistantMessage.isIncomplete = true
-            currentError = .unknown(description: "\(error)")
+            let mapped = OmniRouteError.unknown(description: "\(error)")
+            currentError = mapped
+            await logDiagnostic(mapped)
         }
-        try? context.save()
-        // SwiftData's to-many relationships are backed by Core Data's unordered
-        // NSSet storage; a save can shuffle the materialized array even though the
-        // in-memory order was stable pre-save. Re-sort by creation time so
-        // `conversation.messages` remains chronologically ordered after saving.
-        conversation.messages.sort { $0.createdAt < $1.createdAt }
+
+        do {
+            try context.save()
+        } catch {
+            persistenceError = "Impossible d'enregistrer la conversation : \(error.localizedDescription)"
+        }
+    }
+
+    /// Resends the last user message without re-sending an empty draft.
+    /// Removes the trailing incomplete assistant message from the failed
+    /// attempt (if any) and re-runs `send` with the same text, rather than
+    /// duplicating the streaming logic.
+    func retryLastMessage() async {
+        guard let lastUserMessage = conversation.orderedMessages.last(where: { $0.role == "user" }) else { return }
+
+        if let trailing = conversation.orderedMessages.last,
+           trailing.role == "assistant",
+           trailing.isIncomplete {
+            conversation.messages.removeAll { $0.persistentModelID == trailing.persistentModelID }
+            context.delete(trailing)
+        }
+
+        await send(lastUserMessage.content)
+    }
+
+    private func logDiagnostic(_ error: OmniRouteError) async {
+        let category = Self.categoryName(for: error)
+        let entry = DiagnosticLogEntry(
+            timestamp: Date(),
+            category: category,
+            endpointName: endpointName,
+            detail: Self.detail(for: category)
+        )
+        try? await diagnosticLogger.log(entry)
+    }
+
+    private static func categoryName(for error: OmniRouteError) -> String {
+        switch error {
+        case .authenticationFailed: return "authenticationFailed"
+        case .rateLimited: return "rateLimited"
+        case .network: return "network"
+        case .invalidResponse: return "invalidResponse"
+        case .streamInterrupted: return "streamInterrupted"
+        case .unknown: return "unknown"
+        }
+    }
+
+    private static func detail(for category: String) -> String {
+        switch category {
+        case "authenticationFailed": return "Échec d'authentification auprès d'OmniRoute."
+        case "rateLimited": return "Limite de requêtes atteinte."
+        case "network": return "Erreur réseau lors de l'appel à OmniRoute."
+        case "invalidResponse": return "Réponse HTTP inattendue reçue d'OmniRoute."
+        case "streamInterrupted": return "Le flux de réponse a été interrompu avant la fin."
+        case "unknown": return "Erreur inconnue."
+        default: return "Erreur."
+        }
     }
 }

@@ -41,6 +41,7 @@ final class KeychainCredentialStore: CredentialStore, @unchecked Sendable {
         if updateStatus == errSecItemNotFound {
             var addQuery = query
             addQuery[kSecValueData as String] = data
+            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
             let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
             guard addStatus == errSecSuccess else { throw KeychainError.osStatus(addStatus) }
         } else if updateStatus != errSecSuccess {
@@ -52,7 +53,8 @@ final class KeychainCredentialStore: CredentialStore, @unchecked Sendable {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: profileID.uuidString
+            kSecAttrAccount as String: profileID.uuidString,
+            kSecUseDataProtectionKeychain as String: true
         ]
     }
 }

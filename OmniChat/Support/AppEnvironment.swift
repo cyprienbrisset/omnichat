@@ -6,10 +6,25 @@ import OmniRouteKit
 final class AppEnvironment {
     var activeProfile: EndpointProfile
     let credentialStore: CredentialStore
+    let diagnosticLogger: DiagnosticLogger
 
-    init(activeProfile: EndpointProfile = .defaultLocal, credentialStore: CredentialStore = KeychainCredentialStore()) {
+    init(
+        activeProfile: EndpointProfile = .defaultLocal,
+        credentialStore: CredentialStore = KeychainCredentialStore(),
+        diagnosticLogger: DiagnosticLogger = AppEnvironment.makeDefaultDiagnosticLogger()
+    ) {
         self.activeProfile = activeProfile
         self.credentialStore = credentialStore
+        self.diagnosticLogger = diagnosticLogger
+    }
+
+    static func makeDefaultDiagnosticLogger() -> DiagnosticLogger {
+        let fileManager = FileManager.default
+        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fileManager.temporaryDirectory
+        let directory = appSupport.appendingPathComponent("OmniChat", isDirectory: true)
+        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        return DiagnosticLogger(fileURL: directory.appendingPathComponent("diagnostics.json"))
     }
 
     func loadPersistedProfile(from context: ModelContext) {
@@ -24,6 +39,12 @@ final class AppEnvironment {
         let existing = try context.fetch(FetchDescriptor<StoredEndpointProfile>()).first
         let profileID = existing?.profileID ?? activeProfile.id
 
+        // Write the Keychain credential first so a failure here never leaves
+        // `activeProfile` pointing at a URL with no matching stored key.
+        if !apiKey.isEmpty {
+            try credentialStore.setAPIKey(apiKey, for: profileID)
+        }
+
         if let existing {
             existing.baseURLString = baseURL.absoluteString
         } else {
@@ -31,7 +52,6 @@ final class AppEnvironment {
         }
         try context.save()
 
-        try credentialStore.setAPIKey(apiKey, for: profileID)
         activeProfile = EndpointProfile(id: profileID, name: "Défaut", baseURL: baseURL)
     }
 }

@@ -19,6 +19,9 @@ targets:
         MARKETING_VERSION: "0.1.0"
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: HUPVCSP3S5
+        CODE_SIGN_ENTITLEMENTS: OmniChat/OmniChat.entitlements
   OmniChatTests:
     type: bundle.unit-test
     platform: macOS
@@ -30,6 +33,8 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: HUPVCSP3S5
 schemes:
   OmniChat:
     build:

@@ -13,6 +13,9 @@ struct OmniChatApp: App {
             fatalError("Impossible d'initialiser SwiftData: \(error)")
         }
         appEnvironment.loadPersistedProfile(from: ModelContext(modelContainer))
+
+        let diagnosticLogger = appEnvironment.diagnosticLogger
+        Task { try? await diagnosticLogger.purgeExpired() }
     }
 
     var body: some Scene {

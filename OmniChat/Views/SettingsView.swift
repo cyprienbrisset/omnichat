@@ -12,7 +12,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             TextField("URL OmniRoute", text: $baseURLText)
-            SecureField("Clé API", text: $apiKey)
+            SecureField("Clé API (laisser vide pour ne pas la modifier)", text: $apiKey)
             if let saveError {
                 Text(saveError).foregroundStyle(.red)
             }
@@ -26,7 +26,9 @@ struct SettingsView: View {
     }
 
     private func save() {
-        guard let url = URL(string: baseURLText) else {
+        guard let url = URL(string: baseURLText),
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              url.host?.isEmpty == false else {
             saveError = "URL invalide"
             return
         }

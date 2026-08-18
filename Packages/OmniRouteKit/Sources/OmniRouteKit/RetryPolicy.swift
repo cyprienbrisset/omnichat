@@ -16,6 +16,12 @@ public struct RetryPolicy: Sendable {
         return min(exponential, maxDelay) * (1.0 + jitter)
     }
 
+    /// Applies randomized jitter (0...0.3) to avoid thundering-herd retries.
+    /// Use the explicit-jitter overload above for deterministic testing.
+    public func delay(forAttempt attempt: Int) -> Double {
+        delay(forAttempt: attempt, jitter: Double.random(in: 0...0.3))
+    }
+
     public func shouldRetry(attempt: Int, error: OmniRouteError) -> Bool {
         guard attempt < maxAttempts else { return false }
         switch error {

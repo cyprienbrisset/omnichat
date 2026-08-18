@@ -9,21 +9,26 @@ struct ChatView: View {
     @State private var draft = ""
     @State private var viewModel: ChatViewModel?
 
-    private var sortedMessages: [Message] {
-        conversation.messages.sorted { $0.createdAt < $1.createdAt }
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             if let error = viewModel?.currentError {
                 ErrorBannerView(error: error) {
-                    let text = draft
-                    Task { await viewModel?.send(text) }
+                    Task { await viewModel?.retryLastMessage() }
                 }
+                .disabled(viewModel?.isStreaming ?? false)
+            }
+            if let persistenceError = viewModel?.persistenceError {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                    Text(persistenceError)
+                    Spacer()
+                }
+                .padding(10)
+                .background(Color.red.opacity(0.12))
             }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(sortedMessages, id: \.persistentModelID) { message in
+                    ForEach(conversation.orderedMessages, id: \.persistentModelID) { message in
                         MessageBubble(message: message)
                     }
                 }
@@ -37,13 +42,23 @@ struct ChatView: View {
                     draft = ""
                     Task { await viewModel?.send(text) }
                 }
-                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (viewModel?.isStreaming ?? false))
+                .disabled(
+                    viewModel == nil
+                        || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || (viewModel?.isStreaming ?? false)
+                )
             }
             .padding()
         }
-        .task(id: conversation.persistentModelID) {
+        .task(id: "\(conversation.persistentModelID)-\(appEnvironment.activeProfile.baseURL.absoluteString)") {
             let client = OmniRouteClient(profile: appEnvironment.activeProfile, credentialStore: appEnvironment.credentialStore)
-            viewModel = ChatViewModel(conversation: conversation, client: client, context: context)
+            viewModel = ChatViewModel(
+                conversation: conversation,
+                client: client,
+                context: context,
+                diagnosticLogger: appEnvironment.diagnosticLogger,
+                endpointName: appEnvironment.activeProfile.name
+            )
         }
         .navigationTitle(conversation.title)
     }
