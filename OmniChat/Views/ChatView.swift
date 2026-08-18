@@ -1,6 +1,31 @@
 import SwiftUI
 import SwiftData
+import AVKit
 import OmniRouteKit
+
+private enum ComposerMode: String, CaseIterable, Identifiable {
+    case text, image, video, music, speech
+
+    var id: String { rawValue }
+
+    var mediaKind: MediaKind? {
+        switch self {
+        case .text: return nil
+        case .image: return .image
+        case .video: return .video
+        case .music: return .music
+        case .speech: return .speech
+        }
+    }
+
+    var label: String {
+        mediaKind?.label ?? "Texte"
+    }
+
+    var placeholder: String {
+        mediaKind?.promptPlaceholder ?? "Écrire la suite…"
+    }
+}
 
 struct ChatView: View {
     let conversation: Conversation
@@ -9,6 +34,7 @@ struct ChatView: View {
     @State private var draft = ""
     @State private var viewModel: ChatViewModel?
     @State private var streamingTask: Task<Void, Never>?
+    @State private var mode: ComposerMode = .text
 
     var body: some View {
         HStack(spacing: 0) {
@@ -88,11 +114,12 @@ struct ChatView: View {
     private var composer: some View {
         VStack(spacing: 0) {
             Rectangle().fill(OmniTheme.hairline).frame(height: 1)
+            modeSelector
             HStack(alignment: .bottom, spacing: 12) {
                 TextField(
                     "",
                     text: $draft,
-                    prompt: Text("Écrire la suite…").font(OmniTheme.serif(14).italic()).foregroundStyle(OmniTheme.inkSoft),
+                    prompt: Text(mode.placeholder).font(OmniTheme.serif(14).italic()).foregroundStyle(OmniTheme.inkSoft),
                     axis: .vertical
                 )
                 .textFieldStyle(.plain)
@@ -108,7 +135,13 @@ struct ChatView: View {
                 Button {
                     let text = draft
                     draft = ""
-                    streamingTask = Task { await viewModel?.send(text) }
+                    streamingTask = Task {
+                        if let kind = mode.mediaKind {
+                            await viewModel?.sendMediaPrompt(text, kind: kind)
+                        } else {
+                            await viewModel?.send(text)
+                        }
+                    }
                 } label: {
                     Image(systemName: "arrow.up")
                 }
@@ -122,6 +155,33 @@ struct ChatView: View {
             .padding(16)
         }
         .background(OmniTheme.paper)
+    }
+
+    /// A row of tracked mono tags — the print-shop's substitute for a
+    /// segmented control — switching what the composer sends to.
+    private var modeSelector: some View {
+        HStack(spacing: 20) {
+            ForEach(ComposerMode.allCases) { candidate in
+                Button {
+                    mode = candidate
+                } label: {
+                    Text(candidate.label.uppercased())
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .tracking(1.2)
+                        .foregroundStyle(mode == candidate ? OmniTheme.ink : OmniTheme.inkSoft)
+                        .padding(.bottom, 6)
+                        .overlay(alignment: .bottom) {
+                            Rectangle()
+                                .fill(mode == candidate ? OmniTheme.accent : Color.clear)
+                                .frame(height: 2)
+                        }
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
     }
 }
 
@@ -247,15 +307,65 @@ private struct MessageEntry: View {
                     .frame(width: 6, height: 6)
                 OmniTheme.label("Réponse", size: 10, color: OmniTheme.inkSoft)
             }
-            Text(message.content.isEmpty ? "…" : message.content)
-                .font(OmniTheme.serif(15))
-                .foregroundStyle(OmniTheme.ink)
-                .lineSpacing(5)
+            if let mediaItem = message.mediaItem {
+                MediaContentView(mediaItem: mediaItem)
+                Text(mediaItem.prompt)
+                    .font(OmniTheme.serif(13).italic())
+                    .foregroundStyle(OmniTheme.inkSoft)
+            } else {
+                Text(message.content.isEmpty ? "…" : message.content)
+                    .font(OmniTheme.serif(15))
+                    .foregroundStyle(OmniTheme.ink)
+                    .lineSpacing(5)
+            }
             if let telemetrySummary = message.telemetrySummary {
                 Text(telemetrySummary)
                     .font(OmniTheme.mono(9))
                     .foregroundStyle(OmniTheme.inkSoft)
             }
         }
+    }
+}
+
+/// Renders a generated media item inline — reused at gallery-cell scale by
+/// `GalleryView` (frame size is the caller's responsibility, not baked in
+/// here beyond a sensible chat-inline default).
+struct MediaContentView: View {
+    let mediaItem: MediaItem
+
+    var body: some View {
+        Group {
+            switch mediaItem.kind {
+            case "image":
+                if let nsImage = NSImage(contentsOf: mediaItem.fileURL) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 360)
+                } else {
+                    unavailable
+                }
+            case "video":
+                VideoPlayer(player: AVPlayer(url: mediaItem.fileURL))
+                    .frame(width: 360, height: 220)
+            case "music", "speech":
+                VideoPlayer(player: AVPlayer(url: mediaItem.fileURL))
+                    .frame(width: 320, height: 50)
+            default:
+                unavailable
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(OmniTheme.hairline, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+    }
+
+    private var unavailable: some View {
+        Text("Média indisponible")
+            .font(OmniTheme.mono(11))
+            .foregroundStyle(OmniTheme.inkSoft)
+            .padding(12)
     }
 }
