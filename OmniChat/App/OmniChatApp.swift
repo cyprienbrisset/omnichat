@@ -16,6 +16,9 @@ struct OmniChatApp: App {
 
         let diagnosticLogger = appEnvironment.diagnosticLogger
         Task { try? await diagnosticLogger.purgeExpired() }
+
+        let environment = appEnvironment
+        Task { await environment.refreshManagementAccess() }
     }
 
     var body: some Scene {

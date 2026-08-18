@@ -2,11 +2,22 @@ import Foundation
 import SwiftData
 import OmniRouteKit
 
+/// Whether the configured API key also carries management scope (`/api/*`),
+/// beyond the plain chat scope every key has. Same key, checked capability —
+/// never a second credential. `.unknown` until the first check completes.
+enum ManagementAccessState: Equatable {
+    case unknown
+    case checking
+    case available
+    case unavailable
+}
+
 @Observable
 final class AppEnvironment {
     var activeProfile: EndpointProfile
     let credentialStore: CredentialStore
     let diagnosticLogger: DiagnosticLogger
+    private(set) var managementAccessState: ManagementAccessState = .unknown
 
     var themePreference: ThemePreference {
         didSet {
@@ -63,5 +74,16 @@ final class AppEnvironment {
         try context.save()
 
         activeProfile = EndpointProfile(id: profileID, name: "Défaut", baseURL: baseURL)
+    }
+
+    /// Re-probes the active key's management scope against the server —
+    /// call after launch and whenever the connection is (re)saved, since a
+    /// new key or endpoint may carry different rights than the last one.
+    @MainActor
+    func refreshManagementAccess() async {
+        managementAccessState = .checking
+        let client = OmniRouteClient(profile: activeProfile, credentialStore: credentialStore)
+        let hasAccess = await client.hasManagementAccess()
+        managementAccessState = hasAccess ? .available : .unavailable
     }
 }

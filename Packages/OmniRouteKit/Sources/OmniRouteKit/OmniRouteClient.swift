@@ -1,8 +1,8 @@
 import Foundation
 
 public actor OmniRouteClient {
-    private nonisolated let profile: EndpointProfile
-    private nonisolated let credentialStore: CredentialStore
+    nonisolated let profile: EndpointProfile
+    nonisolated let credentialStore: CredentialStore
     nonisolated let session: URLSession
     nonisolated let retryPolicy: RetryPolicy
 

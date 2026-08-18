@@ -57,6 +57,7 @@ struct SettingsView: View {
             }
 
             connectionTestRow
+            managementAccessRow
 
             if let saveError {
                 Text(saveError)
@@ -135,6 +136,36 @@ struct SettingsView: View {
         }
     }
 
+    /// The same key that's tested for chat reachability is separately
+    /// probed for management scope — one key, checked capability, not a
+    /// second credential. Nothing in the app consumes this yet (memory,
+    /// combos, and MCP audit are still ahead), but the flag is real.
+    @ViewBuilder
+    private var managementAccessRow: some View {
+        switch appEnvironment.managementAccessState {
+        case .unknown:
+            EmptyView()
+        case .checking:
+            Text("Vérification des droits de gestion…")
+                .font(OmniTheme.mono(10))
+                .foregroundStyle(OmniTheme.inkSoft)
+        case .available:
+            HStack(spacing: 5) {
+                Circle().fill(OmniTheme.success).frame(width: 5, height: 5)
+                Text("Droits de gestion disponibles sur cette clé")
+                    .font(OmniTheme.mono(10, weight: .semibold))
+                    .foregroundStyle(OmniTheme.success)
+            }
+        case .unavailable:
+            HStack(spacing: 5) {
+                Circle().fill(OmniTheme.inkSoft).frame(width: 5, height: 5)
+                Text("Droits de gestion non disponibles sur cette clé")
+                    .font(OmniTheme.mono(10))
+                    .foregroundStyle(OmniTheme.inkSoft)
+            }
+        }
+    }
+
     /// Exercises the already-configured, saved profile with a real
     /// `listModels()` call rather than faking a reachability indicator —
     /// tests the currently active (saved) connection, not unsaved form text.
@@ -151,6 +182,7 @@ struct SettingsView: View {
                 connectionTest = .failure(error.localizedDescription)
             }
         }
+        Task { await appEnvironment.refreshManagementAccess() }
     }
 
     private func save() {
@@ -164,6 +196,7 @@ struct SettingsView: View {
             try appEnvironment.persistActiveProfile(baseURL: url, apiKey: apiKey, context: context)
             saveError = nil
             connectionTest = .idle
+            Task { await appEnvironment.refreshManagementAccess() }
         } catch {
             saveError = "Impossible d'enregistrer la clé: \(error.localizedDescription)"
         }
