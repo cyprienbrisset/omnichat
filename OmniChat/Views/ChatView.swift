@@ -18,13 +18,7 @@ struct ChatView: View {
                 .disabled(viewModel?.isStreaming ?? false)
             }
             if let persistenceError = viewModel?.persistenceError {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
-                    Text(persistenceError)
-                    Spacer()
-                }
-                .padding(10)
-                .background(Color.red.opacity(0.12))
+                PersistenceErrorBanner(message: persistenceError)
             }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
@@ -34,21 +28,35 @@ struct ChatView: View {
                 }
                 .padding()
             }
-            HStack {
+            .background(OmniTheme.canvasBackground)
+            .background { OmniDotGridBackground() }
+            HStack(spacing: 10) {
                 TextField("Écris un message…", text: $draft, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                Button("Envoyer") {
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(OmniTheme.cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(OmniTheme.cardBorder, lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                Button {
                     let text = draft
                     draft = ""
                     Task { await viewModel?.send(text) }
+                } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 13, weight: .bold))
                 }
+                .buttonStyle(.omniPrimary)
                 .disabled(
                     viewModel == nil
                         || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         || (viewModel?.isStreaming ?? false)
                 )
             }
-            .padding()
+            .padding(12)
         }
         .task(id: "\(conversation.persistentModelID)-\(appEnvironment.activeProfile.baseURL.absoluteString)") {
             let client = OmniRouteClient(profile: appEnvironment.activeProfile, credentialStore: appEnvironment.credentialStore)
@@ -64,17 +72,73 @@ struct ChatView: View {
     }
 }
 
+private struct PersistenceErrorBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+            Text(message)
+                .font(.system(size: 12))
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.red.opacity(0.12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.red.opacity(0.3), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+    }
+}
+
 private struct MessageBubble: View {
     let message: Message
 
     var body: some View {
-        HStack {
-            if message.role == "assistant" { Spacer(minLength: 40) }
-            Text(message.content.isEmpty ? "…" : message.content)
-                .padding(10)
-                .background(message.role == "user" ? Color.accentColor.opacity(0.15) : Color.gray.opacity(0.15))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-            if message.role == "user" { Spacer(minLength: 40) }
+        HStack(alignment: .top) {
+            if message.role == "user" {
+                Spacer(minLength: 40)
+                userBubble
+            } else {
+                assistantCard
+                Spacer(minLength: 40)
+            }
         }
+    }
+
+    private var userBubble: some View {
+        Text(message.content)
+            .font(.system(size: 13))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(OmniTheme.accent)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private var assistantCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(message.isIncomplete ? Color.orange : OmniTheme.success)
+                    .frame(width: 6, height: 6)
+                Text("assistant")
+                    .font(OmniTheme.mono(10, weight: .semibold))
+                    .foregroundStyle(OmniTheme.secondaryText)
+            }
+            Text(message.content.isEmpty ? "…" : message.content)
+                .font(.system(size: 13))
+        }
+        .padding(12)
+        .background(OmniTheme.cardBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(OmniTheme.cardBorder, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }

@@ -25,7 +25,7 @@ struct OmniChatApp: App {
         }
         .modelContainer(modelContainer)
 
-        MenuBarExtra("OmniChat", systemImage: "bubble.left.and.bubble.right") {
+        MenuBarExtra("OmniChat", systemImage: "diamond.fill") {
             MenuBarChatView()
                 .environment(appEnvironment)
         }

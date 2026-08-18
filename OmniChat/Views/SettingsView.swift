@@ -10,16 +10,38 @@ struct SettingsView: View {
     @State private var saveError: String?
 
     var body: some View {
-        Form {
-            TextField("URL OmniRoute", text: $baseURLText)
-            SecureField("Clé API (laisser vide pour ne pas la modifier)", text: $apiKey)
-            if let saveError {
-                Text(saveError).foregroundStyle(.red)
+        VStack(alignment: .leading, spacing: 18) {
+            OmniTheme.eyebrow("Connexion OmniRoute")
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("URL de base")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(OmniTheme.secondaryText)
+                TextField("http://localhost:20128/v1", text: $baseURLText)
+                    .font(OmniTheme.mono(12))
+                    .textFieldStyle(.roundedBorder)
             }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Clé API")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(OmniTheme.secondaryText)
+                SecureField("Laisser vide pour ne pas la modifier", text: $apiKey)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            if let saveError {
+                Label(saveError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.red)
+            }
+
             Button("Enregistrer", action: save)
+                .buttonStyle(.omniPrimary)
         }
-        .padding()
-        .frame(width: 360)
+        .padding(20)
+        .frame(width: 380)
+        .background(OmniTheme.canvasBackground)
         .onAppear {
             baseURLText = appEnvironment.activeProfile.baseURL.absoluteString
         }

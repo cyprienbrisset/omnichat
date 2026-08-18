@@ -9,8 +9,17 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             List(conversations, selection: $selectedConversation) { conversation in
-                Text(conversation.title).tag(conversation)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(conversation.title)
+                        .font(.system(size: 13, weight: .medium))
+                    Text(conversation.createdAt, style: .relative)
+                        .font(OmniTheme.mono(10))
+                        .foregroundStyle(OmniTheme.secondaryText)
+                }
+                .padding(.vertical, 3)
+                .tag(conversation)
             }
+            .listStyle(.sidebar)
             .toolbar {
                 ToolbarItem {
                     Button("Nouvelle conversation", systemImage: "plus", action: createConversation)
@@ -31,8 +40,10 @@ struct ContentView: View {
                     Text("Crée une conversation pour commencer à discuter.")
                 } actions: {
                     Button("Nouvelle conversation", action: createConversation)
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.omniPrimary)
                 }
+                .background(OmniTheme.canvasBackground)
+                .background { OmniDotGridBackground() }
                 .navigationTitle("OmniChat")
             }
         }

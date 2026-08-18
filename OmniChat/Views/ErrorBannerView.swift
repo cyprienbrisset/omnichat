@@ -6,14 +6,25 @@ struct ErrorBannerView: View {
     let retryAction: () -> Void
 
     var body: some View {
-        HStack {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
             Text(message)
+                .font(.system(size: 12))
             Spacer()
             Button("Réessayer", action: retryAction)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
         }
-        .padding(10)
+        .padding(12)
         .background(Color.orange.opacity(0.12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
     }
 
     private var message: String {
