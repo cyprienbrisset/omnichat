@@ -8,6 +8,7 @@ final class Message {
     var createdAt: Date
     var isIncomplete: Bool
     var conversation: Conversation?
+    var mediaItem: MediaItem?
 
     // Telemetry parsed from OmniRoute's `X-OmniRoute-*` response headers, when
     // present (see `RequestTelemetry` in OmniRouteKit). All optional and
