@@ -54,6 +54,13 @@ final class ChatViewModel {
 
         do {
             for try await delta in client.streamChatCompletion(request) {
+                // Cooperative stop: ChatView cancels the Task it wraps this
+                // call in when the user taps "Arrêter". Breaking here (rather
+                // than throwing) means no error banner — a deliberate stop
+                // isn't a failure — and breaking out of the for-loop tears
+                // down the underlying AsyncThrowingStream, which cancels the
+                // in-flight network request via its `onTermination` handler.
+                if Task.isCancelled { break }
                 if let telemetry = delta.telemetry {
                     assistantMessage.routingStrategy = telemetry.routingStrategy
                     assistantMessage.routingProvider = telemetry.routingProvider
@@ -64,6 +71,9 @@ final class ChatViewModel {
                     assistantMessage.cacheHit = telemetry.cacheHit
                 }
                 assistantMessage.content += delta.content
+            }
+            if Task.isCancelled {
+                assistantMessage.isIncomplete = true
             }
         } catch let error as OmniRouteError {
             assistantMessage.isIncomplete = true

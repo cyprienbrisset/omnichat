@@ -28,6 +28,24 @@ private final class FakeChatCompleting: ChatCompleting, @unchecked Sendable {
     }
 }
 
+/// Yields deltas with a small delay between each, giving tests a real window
+/// to cancel the wrapping `Task` mid-stream (unlike `FakeChatCompleting`,
+/// which yields its whole array synchronously with no cancellation window).
+private final class SlowFakeChatCompleting: ChatCompleting, @unchecked Sendable {
+    func streamChatCompletion(_ request: ChatCompletionRequest) -> AsyncThrowingStream<ChatDelta, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                for chunk in ["Un", "Deux", "Trois", "Quatre", "Cinq"] {
+                    try? await Task.sleep(for: .milliseconds(30))
+                    continuation.yield(ChatDelta(content: chunk, isFinal: false))
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+}
+
 @MainActor
 final class ChatViewModelTests: XCTestCase {
     private func makeSchema() -> Schema {
@@ -121,6 +139,23 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(assistantMessage.routingLatencyMs, 812)
         XCTAssertEqual(assistantMessage.tokensOut, 342)
         XCTAssertEqual(assistantMessage.telemetrySummary, "cheapest → cerebras · 812 ms · $0.0012 · 128→342 tok")
+    }
+
+    func test_send_whenWrappingTaskCancelled_marksAssistantMessageIncompleteWithoutError() async throws {
+        let context = try makeContext()
+        let conversation = Conversation(title: "Test", defaultModelID: "auto")
+        context.insert(conversation)
+        let fake = SlowFakeChatCompleting()
+        let viewModel = makeViewModel(conversation: conversation, client: fake, context: context)
+
+        let task = Task { await viewModel.send("Salut") }
+        try await Task.sleep(for: .milliseconds(45))
+        task.cancel()
+        await task.value
+
+        XCTAssertNil(viewModel.currentError)
+        XCTAssertEqual(conversation.orderedMessages.last?.role, "assistant")
+        XCTAssertEqual(conversation.orderedMessages.last?.isIncomplete, true)
     }
 
     /// Regression test for the ordering bug: `conversation.messages` is backed
