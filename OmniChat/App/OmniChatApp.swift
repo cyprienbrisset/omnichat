@@ -19,7 +19,7 @@ struct OmniChatApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             ContentView()
                 .environment(appEnvironment)
         }

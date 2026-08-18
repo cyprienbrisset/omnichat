@@ -12,13 +12,28 @@ struct ContentView: View {
                 Text(conversation.title).tag(conversation)
             }
             .toolbar {
-                Button("Nouvelle conversation", systemImage: "plus", action: createConversation)
+                ToolbarItem {
+                    Button("Nouvelle conversation", systemImage: "plus", action: createConversation)
+                }
+                ToolbarItem {
+                    SettingsLink {
+                        Label("Réglages", systemImage: "gear")
+                    }
+                }
             }
         } detail: {
             if let selectedConversation {
                 ChatView(conversation: selectedConversation)
             } else {
-                ContentUnavailableView("Sélectionne ou crée une conversation", systemImage: "bubble.left.and.bubble.right")
+                ContentUnavailableView {
+                    Label("Aucune conversation", systemImage: "bubble.left.and.bubble.right")
+                } description: {
+                    Text("Crée une conversation pour commencer à discuter.")
+                } actions: {
+                    Button("Nouvelle conversation", action: createConversation)
+                        .buttonStyle(.borderedProminent)
+                }
+                .navigationTitle("OmniChat")
             }
         }
         .onAppear {

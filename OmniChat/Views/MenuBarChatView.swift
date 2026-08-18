@@ -2,6 +2,8 @@ import SwiftUI
 import AppKit
 
 struct MenuBarChatView: View {
+    @Environment(\.openWindow) private var openWindow
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("OmniChat").font(.headline)
@@ -10,9 +12,10 @@ struct MenuBarChatView: View {
                 .foregroundStyle(.secondary)
             Button("Ouvrir OmniChat") {
                 NSApp.activate(ignoringOtherApps: true)
-                for window in NSApp.windows where !window.title.isEmpty {
-                    window.makeKeyAndOrderFront(nil)
-                }
+                openWindow(id: "main")
+            }
+            SettingsLink {
+                Text("Réglages…")
             }
         }
         .padding()
