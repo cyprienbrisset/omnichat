@@ -8,12 +8,14 @@ struct RailView: View {
     let isMemorySelected: Bool
     let isMCPSelected: Bool
     let isRAGSelected: Bool
+    let isComparisonSelected: Bool
     let catalogSummary: CatalogSummary?
     let onNewConversation: () -> Void
     let onSelectGallery: () -> Void
     let onSelectMemory: () -> Void
     let onSelectMCP: () -> Void
     let onSelectRAG: () -> Void
+    let onSelectComparison: () -> Void
 
     var body: some View {
         VStack(spacing: 18) {
@@ -47,7 +49,8 @@ struct RailView: View {
                     Image(systemName: candidate.systemImage)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(
-                            !isGallerySelected && !isMemorySelected && !isMCPSelected && !isRAGSelected && mode == candidate
+                            !isGallerySelected && !isMemorySelected && !isMCPSelected && !isRAGSelected
+                                && !isComparisonSelected && mode == candidate
                                 ? OmniTheme.accent : OmniTheme.railText.opacity(0.7)
                         )
                 }
@@ -86,6 +89,14 @@ struct RailView: View {
             }
             .buttonStyle(.plain)
             .help("Recherche locale")
+
+            Button(action: onSelectComparison) {
+                Image(systemName: "square.split.2x1")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isComparisonSelected ? OmniTheme.accent : OmniTheme.railText.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+            .help("Comparaison")
 
             Spacer()
 

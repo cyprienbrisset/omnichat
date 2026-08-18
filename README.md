@@ -18,10 +18,11 @@ compatible OpenAI.
 > statistiques d'audit), indicateur réel de santé des fournisseurs en pied
 > de sidebar (`/api/monitoring/health`), recherche locale (RAG) sur
 > l'historique des conversations avec attache de contexte au message
-> suivant, menu bar + fenêtre principale. RAG documentaire (import de
-> fichiers), A2A, OCR, transcription audio, comparaison multi-modèles et
-> gestion des combos/routage/compression ne sont pas encore implémentés
-> (voir le spec pour le périmètre complet).
+> suivant, comparaison multi-modèles côte à côte (prompt unique, N flux
+> réels indépendants), menu bar + fenêtre principale. RAG documentaire
+> (import de fichiers), A2A, OCR, transcription audio et gestion des
+> combos/routage/compression ne sont pas encore implémentés (voir le spec
+> pour le périmètre complet).
 
 ## Ce que fait OmniChat
 
@@ -138,6 +139,16 @@ peuvent être joints comme contexte au prochain message envoyé (message
 `system` transitoire, jamais persisté comme un vrai message de la
 conversation). L'import de documents externes n'est pas implémenté — seul
 l'historique des conversations déjà dans OmniChat est indexable.
+
+## Comparaison multi-modèles
+
+Icône dédiée du rail. Un seul prompt envoyé à N modèles ajoutés via le
+même casier ⌘K que le reste de l'app ; chaque colonne diffuse
+indépendamment sa propre réponse réelle (`streamChatCompletion`) et
+affiche ses propres jetons/coût/latence une fois reçus. Volontairement
+éphémère : rien n'est persisté comme conversation — changer d'écran perd
+les colonnes. Aucune notion de « combo » ou de juge ici, contrairement au
+mockup 3b (Fusion) : c'est une comparaison brute, pas une synthèse.
 
 ## Sous-projets liés
 
