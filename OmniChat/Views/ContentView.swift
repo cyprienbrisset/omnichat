@@ -4,6 +4,7 @@ import SwiftData
 private enum DetailOverlay {
     case gallery
     case memory
+    case mcp
 }
 
 struct ContentView: View {
@@ -49,10 +50,12 @@ struct ContentView: View {
                 mode: Binding(get: { sidebarMode }, set: { sidebarMode = $0; detailOverlay = nil }),
                 isGallerySelected: detailOverlay == .gallery,
                 isMemorySelected: detailOverlay == .memory,
+                isMCPSelected: detailOverlay == .mcp,
                 catalogSummary: appEnvironment.catalogSummary,
                 onNewConversation: createConversation,
                 onSelectGallery: { detailOverlay = .gallery },
-                onSelectMemory: { detailOverlay = .memory }
+                onSelectMemory: { detailOverlay = .memory },
+                onSelectMCP: { detailOverlay = .mcp }
             )
             registerPanel
                 .frame(width: 300)
@@ -65,6 +68,8 @@ struct ContentView: View {
                     GalleryView()
                 case .memory:
                     MemoryView()
+                case .mcp:
+                    MCPView()
                 case nil:
                     if let selectedConversation {
                         ChatView(conversation: selectedConversation)

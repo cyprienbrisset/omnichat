@@ -6,10 +6,12 @@ struct RailView: View {
     @Binding var mode: SidebarMode
     let isGallerySelected: Bool
     let isMemorySelected: Bool
+    let isMCPSelected: Bool
     let catalogSummary: CatalogSummary?
     let onNewConversation: () -> Void
     let onSelectGallery: () -> Void
     let onSelectMemory: () -> Void
+    let onSelectMCP: () -> Void
 
     var body: some View {
         VStack(spacing: 18) {
@@ -43,7 +45,7 @@ struct RailView: View {
                     Image(systemName: candidate.systemImage)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(
-                            !isGallerySelected && !isMemorySelected && mode == candidate
+                            !isGallerySelected && !isMemorySelected && !isMCPSelected && mode == candidate
                                 ? OmniTheme.accent : OmniTheme.railText.opacity(0.7)
                         )
                 }
@@ -66,6 +68,14 @@ struct RailView: View {
             }
             .buttonStyle(.plain)
             .help("Mémoire")
+
+            Button(action: onSelectMCP) {
+                Image(systemName: "point.3.filled.connected.trianglepath.dotted")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isMCPSelected ? OmniTheme.accent : OmniTheme.railText.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+            .help("Serveur MCP")
 
             Spacer()
 

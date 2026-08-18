@@ -14,9 +14,11 @@ compatible OpenAI.
 > sélection de modèle par conversation (⌘K), détection des droits de
 > gestion sur la clé API, navigateur de mémoire réel (lecture/suppression
 > via l'API de gestion, avec message explicite si la clé n'a pas les
-> droits), menu bar + fenêtre principale. RAG, MCP, A2A, OCR, transcription
-> audio, comparaison multi-modèles et gestion des combos/routage ne sont
-> pas encore implémentés (voir le spec pour le périmètre complet).
+> droits), navigateur du serveur MCP embarqué (statut, outils exposés,
+> statistiques d'audit), menu bar + fenêtre principale. RAG, A2A, OCR,
+> transcription audio, comparaison multi-modèles et gestion des
+> combos/routage ne sont pas encore implémentés (voir le spec pour le
+> périmètre complet).
 
 ## Ce que fait OmniChat
 
@@ -92,6 +94,18 @@ plutôt que d'afficher une liste vide trompeuse. La forme exacte de la
 réponse `/api/memory` n'étant pas documentée avec certitude, le parsing
 essaie plusieurs formes plausibles (tableau nu, `{data:[...]}`,
 `{memories:[...]}`) avant d'échouer proprement.
+
+## Serveur MCP (API de gestion)
+
+Icône dédiée du rail ouvrant un navigateur du serveur MCP embarqué
+d'OmniRoute (`GET /api/mcp/status`, `/api/mcp/tools`, `/api/mcp/audit/stats`),
+même garde d'accès et même clé que la Mémoire. La forme JSON exacte du
+statut et des stats d'audit n'est documentée qu'en prose dans la référence
+d'API (pas de noms de champs) — plutôt que de deviner des clés et risquer
+d'afficher une donnée réelle sous une mauvaise étiquette, ces deux réponses
+sont affichées telles quelles (liste brute clé/valeur triée). Seule la
+liste des outils (`name`, `description`, `scopes`, `phase`, `auditLevel`,
+`sourceEndpoints`) a une forme documentée et un rendu dédié.
 
 ## Sous-projets liés
 
