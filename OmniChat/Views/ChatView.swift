@@ -10,11 +10,17 @@ struct ChatView: View {
     @State private var viewModel: ChatViewModel?
     @State private var streamingTask: Task<Void, Never>?
     @State private var mode: ComposerMode = .text
+    @State private var showingModelPicker = false
 
     var body: some View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
                 header
+
+                Button("") { showingModelPicker = true }
+                    .keyboardShortcut("k", modifiers: .command)
+                    .hidden()
+                    .frame(width: 0, height: 0)
 
                 if let error = viewModel?.currentError {
                     ErrorBannerView(error: error) {
@@ -64,16 +70,28 @@ struct ChatView: View {
             )
         }
         .navigationTitle(conversation.title)
+        .sheet(isPresented: $showingModelPicker) {
+            ModelPickerView(currentModelID: conversation.defaultModelID) { modelID in
+                conversation.defaultModelID = modelID
+                try? context.save()
+            }
+        }
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text("OmniChat — \(conversation.title)")
                     .lineLimit(1)
                 Spacer(minLength: 12)
-                Text("\(Date().formatted(.dateTime.day().month(.wide).year())) · model: \(conversation.defaultModelID)")
-                    .lineLimit(1)
+                Text("\(Date().formatted(.dateTime.day().month(.wide).year())) ·")
+                Button {
+                    showingModelPicker = true
+                } label: {
+                    Text("model: \(conversation.defaultModelID) · ⌘K")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(OmniTheme.accent)
             }
             .font(.system(size: 9.5, weight: .bold, design: .monospaced))
             .tracking(1.6)
