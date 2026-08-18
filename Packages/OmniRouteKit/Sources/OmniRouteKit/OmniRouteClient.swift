@@ -3,8 +3,8 @@ import Foundation
 public actor OmniRouteClient {
     private nonisolated let profile: EndpointProfile
     private nonisolated let credentialStore: CredentialStore
-    private nonisolated let session: URLSession
-    private nonisolated let retryPolicy: RetryPolicy
+    nonisolated let session: URLSession
+    nonisolated let retryPolicy: RetryPolicy
 
     public init(
         profile: EndpointProfile,
@@ -18,7 +18,7 @@ public actor OmniRouteClient {
         self.retryPolicy = retryPolicy
     }
 
-    private nonisolated func authorizedRequest(path: String) throws -> URLRequest {
+    nonisolated func authorizedRequest(path: String) throws -> URLRequest {
         var request = URLRequest(url: profile.baseURL.appendingPathComponent(path))
         if let apiKey = try credentialStore.apiKey(for: profile.id) {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
