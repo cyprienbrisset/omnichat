@@ -158,22 +158,23 @@ struct ChatView: View {
     }
 
     /// A row of tracked mono tags — the print-shop's substitute for a
-    /// segmented control — switching what the composer sends to.
+    /// segmented control — switching what the composer sends to. Sized to
+    /// match the mockup's composer toolbar (small caps, hairline underline).
     private var modeSelector: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: 14) {
             ForEach(ComposerMode.allCases) { candidate in
                 Button {
                     mode = candidate
                 } label: {
                     Text(candidate.label.uppercased())
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .tracking(1.2)
-                        .foregroundStyle(mode == candidate ? OmniTheme.ink : OmniTheme.inkSoft)
-                        .padding(.bottom, 6)
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        .tracking(1.0)
+                        .foregroundStyle(mode == candidate ? OmniTheme.accent : OmniTheme.inkSoft)
+                        .padding(.bottom, 3)
                         .overlay(alignment: .bottom) {
                             Rectangle()
-                                .fill(mode == candidate ? OmniTheme.accent : Color.clear)
-                                .frame(height: 2)
+                                .fill(mode == candidate ? OmniTheme.accent : OmniTheme.hairline)
+                                .frame(height: 1)
                         }
                 }
                 .buttonStyle(.plain)
@@ -285,6 +286,21 @@ private struct MessageEntry: View {
         }
     }
 
+    /// The mockup's initial-letter "lettrine" — the first character set large
+    /// and in the warm accent, the rest of the response as normal serif
+    /// prose. SwiftUI has no CSS-style float, so this doesn't wrap text
+    /// around the tall letter across multiple lines like the mockup does;
+    /// it's a Text-concatenation approximation, not a pixel-exact port.
+    private func dropCapText(_ content: String) -> Text {
+        guard let first = content.first else { return Text(content) }
+        return Text(String(first))
+            .font(OmniTheme.serif(32, weight: .semibold))
+            .foregroundStyle(OmniTheme.warning)
+            + Text(String(content.dropFirst()))
+                .font(OmniTheme.serif(15))
+                .foregroundStyle(OmniTheme.ink)
+    }
+
     private var requestBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
             OmniTheme.label("Demande", size: 10, color: OmniTheme.inkSoft)
@@ -312,10 +328,12 @@ private struct MessageEntry: View {
                 Text(mediaItem.prompt)
                     .font(OmniTheme.serif(13).italic())
                     .foregroundStyle(OmniTheme.inkSoft)
-            } else {
-                Text(message.content.isEmpty ? "…" : message.content)
+            } else if message.content.isEmpty {
+                Text("…")
                     .font(OmniTheme.serif(15))
                     .foregroundStyle(OmniTheme.ink)
+            } else {
+                dropCapText(message.content)
                     .lineSpacing(5)
             }
             if let telemetrySummary = message.telemetrySummary {
