@@ -5,11 +5,14 @@ App macOS native (Swift + SwiftUI, macOS 26+) pour exploiter
 open-source agrégeant 339 fournisseurs de modèles derrière une API
 compatible OpenAI.
 
-> **Statut : socle + chat fonctionnels.** Chat multi-modèles en streaming,
-> gestion d'erreurs (auth/rate limit/réseau/stream interrompu), persistance
-> locale (SwiftData), clé API dans le Keychain, menu bar + fenêtre
-> principale. Médias, RAG, MCP, A2A, OCR et traduction audio ne sont pas
-> encore implémentés (voir le spec pour le périmètre complet).
+> **Statut : socle + chat + génération média fonctionnels.** Chat
+> multi-modèles en streaming, génération d'images/vidéo/musique et synthèse
+> vocale avec rendu inline + galerie dédiée, gestion des conversations
+> (renommer, archiver, corbeille à rétention 30 jours), gestion d'erreurs
+> (auth/rate limit/réseau/stream interrompu/arrêt manuel), persistance
+> locale (SwiftData), clé API dans le Keychain, thème clair/sombre manuel,
+> menu bar + fenêtre principale. RAG, MCP, A2A, OCR et transcription audio
+> ne sont pas encore implémentés (voir le spec pour le périmètre complet).
 
 ## Ce que fait OmniChat
 
@@ -48,6 +51,31 @@ comparaison de réponses, un sélecteur de modèles façon trombinoscope
 (⌘K) et un panneau de routage/combos font partie d'une direction future
 documentée mais non planifiée — ils dépendent de fonctionnalités
 (télémétrie de combo, coûts/latences par requête) pas encore construites.
+
+## Génération média
+
+Le composeur de la fenêtre principale bascule entre Texte/Image/Vidéo/
+Musique/Voix via une rangée d'onglets mono trackés (le substitut « atelier
+d'imprimerie » du sélecteur segmenté classique). Chaque résultat s'affiche
+inline dans la conversation (image, lecteur vidéo, lecteur audio pour
+musique/voix) et rejoint la Galerie (icône dédiée dans le rail), filtrable
+par type. Les fichiers sont enregistrés sous
+`~/Library/Application Support/OmniChat/Media/` — jamais dans le bundle de
+l'app, jamais dans un chemin synchronisé iCloud. Ces quatre appels
+(`/v1/images/generations`, `/v1/videos/generations`,
+`/v1/music/generations`, `/v1/audio/speech`) sont synchrones côté OmniRoute
+(pas de file d'attente/polling), vérifié directement dans le code source
+de l'API avant implémentation.
+
+## Gestion des conversations
+
+Trois vues commutables depuis des icônes dédiées du rail (inspiré de
+ChatGPT) : Conversations, Archivées, Corbeille. Un clic droit sur une
+conversation permet de la renommer, l'archiver/désarchiver, ou la
+supprimer — la suppression la déplace en Corbeille plutôt que de l'effacer
+immédiatement ; elle y reste 30 jours (purgée automatiquement ensuite,
+même logique que `DiagnosticLogger`) avant suppression définitive, avec
+restauration ou suppression immédiate possibles entre-temps.
 
 ## Sous-projets liés
 
@@ -105,3 +133,10 @@ par défaut, ou une instance distante) et ta clé API. La clé est stockée dans
 le Keychain macOS, jamais en clair. Une fois la connexion enregistrée,
 « Tester la connexion actuelle » appelle réellement `GET /v1/models` pour
 confirmer que l'endpoint et la clé sont valides (pas un indicateur factice).
+
+L'app autorise les connexions HTTP simples vers n'importe quel domaine
+(`NSAllowsArbitraryLoads` dans `project.yml`) — beaucoup d'instances
+OmniRoute auto-hébergées (localhost, IP nue derrière un reverse-proxy sans
+TLS) n'ont pas de certificat, et App Transport Security les bloquerait
+sinon par défaut, avec une erreur réseau générique ne mentionnant jamais
+la vraie cause.
