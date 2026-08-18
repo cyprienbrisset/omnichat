@@ -12,6 +12,7 @@ struct OmniChatApp: App {
         } catch {
             fatalError("Impossible d'initialiser SwiftData: \(error)")
         }
+        appEnvironment.loadPersistedProfile(from: ModelContext(modelContainer))
     }
 
     var body: some Scene {

@@ -1,9 +1,11 @@
 import SwiftUI
+import SwiftData
 import OmniRouteKit
 
 struct SettingsView: View {
     @Environment(AppEnvironment.self) private var appEnvironment
-    @State private var baseURLText = EndpointProfile.defaultLocal.baseURL.absoluteString
+    @Environment(\.modelContext) private var context
+    @State private var baseURLText = ""
     @State private var apiKey = ""
     @State private var saveError: String?
 
@@ -18,6 +20,9 @@ struct SettingsView: View {
         }
         .padding()
         .frame(width: 360)
+        .onAppear {
+            baseURLText = appEnvironment.activeProfile.baseURL.absoluteString
+        }
     }
 
     private func save() {
@@ -25,10 +30,8 @@ struct SettingsView: View {
             saveError = "URL invalide"
             return
         }
-        let profile = EndpointProfile(name: "Défaut", baseURL: url)
-        appEnvironment.activeProfile = profile
         do {
-            try appEnvironment.credentialStore.setAPIKey(apiKey, for: profile.id)
+            try appEnvironment.persistActiveProfile(baseURL: url, apiKey: apiKey, context: context)
             saveError = nil
         } catch {
             saveError = "Impossible d'enregistrer la clé: \(error.localizedDescription)"

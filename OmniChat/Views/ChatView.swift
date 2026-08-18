@@ -9,6 +9,10 @@ struct ChatView: View {
     @State private var draft = ""
     @State private var viewModel: ChatViewModel?
 
+    private var sortedMessages: [Message] {
+        conversation.messages.sorted { $0.createdAt < $1.createdAt }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if let error = viewModel?.currentError {
@@ -19,7 +23,7 @@ struct ChatView: View {
             }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(conversation.messages, id: \.persistentModelID) { message in
+                    ForEach(sortedMessages, id: \.persistentModelID) { message in
                         MessageBubble(message: message)
                     }
                 }
