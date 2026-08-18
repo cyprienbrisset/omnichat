@@ -25,8 +25,9 @@ struct OmniChatApp: App {
                 .preferredColorScheme(appEnvironment.themePreference.colorScheme)
         }
         .modelContainer(modelContainer)
+        .windowStyle(.hiddenTitleBar)
 
-        MenuBarExtra("OmniChat", systemImage: "diamond.fill") {
+        MenuBarExtra("OmniChat", systemImage: "doc.text.fill") {
             MenuBarChatView()
                 .environment(appEnvironment)
                 .preferredColorScheme(appEnvironment.themePreference.colorScheme)

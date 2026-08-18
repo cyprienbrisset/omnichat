@@ -29,9 +29,14 @@ public struct ChatCompletionRequest: Encodable, Sendable {
 public struct ChatDelta: Sendable, Equatable {
     public let content: String
     public let isFinal: Bool
+    /// Present only on the delta that carries the response's recognized
+    /// `X-OmniRoute-*` telemetry headers (yielded once, before any content,
+    /// since headers are available as soon as the HTTP response arrives).
+    public let telemetry: RequestTelemetry?
 
-    public init(content: String, isFinal: Bool) {
+    public init(content: String, isFinal: Bool, telemetry: RequestTelemetry? = nil) {
         self.content = content
         self.isFinal = isFinal
+        self.telemetry = telemetry
     }
 }

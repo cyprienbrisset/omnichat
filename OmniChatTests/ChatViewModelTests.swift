@@ -92,6 +92,37 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(conversation.orderedMessages.last?.isIncomplete, true)
     }
 
+    func test_send_appliesTelemetryFromDeltaToAssistantMessage() async throws {
+        let context = try makeContext()
+        let conversation = Conversation(title: "Test", defaultModelID: "auto")
+        context.insert(conversation)
+        let telemetry = RequestTelemetry(
+            routingStrategy: "cheapest",
+            routingProvider: "cerebras",
+            routingLatencyMs: 812,
+            responseCostUSD: 0.0012,
+            tokensIn: 128,
+            tokensOut: 342,
+            cacheHit: false
+        )
+        let fake = FakeChatCompleting(
+            deltas: [
+                ChatDelta(content: "", isFinal: false, telemetry: telemetry),
+                ChatDelta(content: "Bonjour", isFinal: false)
+            ],
+            error: nil
+        )
+        let viewModel = makeViewModel(conversation: conversation, client: fake, context: context)
+
+        await viewModel.send("Salut")
+
+        let assistantMessage = try XCTUnwrap(conversation.orderedMessages.last { $0.role == "assistant" })
+        XCTAssertEqual(assistantMessage.routingProvider, "cerebras")
+        XCTAssertEqual(assistantMessage.routingLatencyMs, 812)
+        XCTAssertEqual(assistantMessage.tokensOut, 342)
+        XCTAssertEqual(assistantMessage.telemetrySummary, "cheapest → cerebras · 812 ms · $0.0012 · 128→342 tok")
+    }
+
     /// Regression test for the ordering bug: `conversation.messages` is backed
     /// by an unordered SwiftData relationship. This simulates that by
     /// appending pre-existing messages in a deliberately non-chronological

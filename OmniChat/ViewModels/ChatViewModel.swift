@@ -54,6 +54,15 @@ final class ChatViewModel {
 
         do {
             for try await delta in client.streamChatCompletion(request) {
+                if let telemetry = delta.telemetry {
+                    assistantMessage.routingStrategy = telemetry.routingStrategy
+                    assistantMessage.routingProvider = telemetry.routingProvider
+                    assistantMessage.routingLatencyMs = telemetry.routingLatencyMs
+                    assistantMessage.responseCostUSD = telemetry.responseCostUSD
+                    assistantMessage.tokensIn = telemetry.tokensIn
+                    assistantMessage.tokensOut = telemetry.tokensOut
+                    assistantMessage.cacheHit = telemetry.cacheHit
+                }
                 assistantMessage.content += delta.content
             }
         } catch let error as OmniRouteError {

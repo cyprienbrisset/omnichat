@@ -78,7 +78,10 @@ extension OmniRouteClient: ChatCompleting {
                     urlRequest.httpBody = try JSONEncoder().encode(request)
 
                     let (bytes, response) = try await session.bytes(for: urlRequest)
-                    _ = try Self.requireSuccess(response)
+                    let http = try Self.requireSuccess(response)
+                    if let telemetry = RequestTelemetry.parse(from: http) {
+                        continuation.yield(ChatDelta(content: "", isFinal: false, telemetry: telemetry))
+                    }
 
                     var receivedFinal = false
                     for try await line in bytes.lines {

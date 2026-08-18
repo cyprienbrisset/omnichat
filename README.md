@@ -25,6 +25,30 @@ Détail complet du périmètre, de l'architecture et des décisions de
 conception :
 [docs/superpowers/specs/2026-08-17-omnichat-macos-app-design.md](docs/superpowers/specs/2026-08-17-omnichat-macos-app-design.md)
 
+## Identité visuelle : l'atelier d'imprimerie
+
+OmniChat adopte une direction artistique distincte plutôt qu'une interface
+macOS générique : papier (`#f5efe2`/`#dcd5c6`), encre quasi noire, serif
+(prose des réponses, titres) contrastée avec du monospace tracké en
+majuscules (labels, métadonnées), filets fins et une texture de hachures
+diagonales très discrète — un clin d'œil aux plaques d'imprimerie plutôt
+qu'aux bulles de chat classiques : une requête utilisateur se lit comme une
+citation en italique, une réponse comme un paragraphe de prose. Le thème
+est centralisé dans `OmniChat/Support/Theme.swift` (`OmniTheme`) et
+s'adapte clair/sombre comme avant.
+
+Ce traitement est appliqué à la fenêtre principale (conversation +
+sidebar), aux réglages/premier lancement et au menu bar. Chaque réponse
+affiche, quand OmniRoute les fournit, sa trace de routage et son coût réels
+(stratégie/fournisseur, latence, tokens, coût, cache) — lus depuis les
+en-têtes `X-OmniRoute-*` de la réponse, jamais recalculés ni fabriqués : si
+un champ est absent (le jeu coût/tokens n'est confirmé par la doc que hors
+streaming), il n'apparaît simplement pas. Une vue
+comparaison de réponses, un sélecteur de modèles façon trombinoscope
+(⌘K) et un panneau de routage/combos font partie d'une direction future
+documentée mais non planifiée — ils dépendent de fonctionnalités
+(télémétrie de combo, coûts/latences par requête) pas encore construites.
+
 ## Sous-projets liés
 
 - **OmniChat** (ce dépôt) — l'app macOS native.
@@ -78,4 +102,6 @@ localement sans modifier `project.yml`.
 Au premier lancement, ouvre les réglages de l'app (menu OmniChat > Réglages)
 pour renseigner l'URL de ton instance OmniRoute (`http://localhost:20128/v1`
 par défaut, ou une instance distante) et ta clé API. La clé est stockée dans
-le Keychain macOS, jamais en clair.
+le Keychain macOS, jamais en clair. Une fois la connexion enregistrée,
+« Tester la connexion actuelle » appelle réellement `GET /v1/models` pour
+confirmer que l'endpoint et la clé sont valides (pas un indicateur factice).
