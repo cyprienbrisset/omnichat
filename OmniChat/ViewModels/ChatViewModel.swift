@@ -231,17 +231,21 @@ final class ChatViewModel {
     /// generations"` for a specific Fireworks entry, even though the
     /// catalog GET itself succeeds) — a provider-registration quirk on
     /// OmniRoute's side, not something a fixed "pick the first one" can
-    /// paper over. So this tries a few real candidates in order and only
-    /// moves to the next on that exact 404 shape; any other error (auth,
-    /// budget, rate limit, content policy) is real and surfaces immediately
-    /// rather than masking it behind a pointless retry.
+    /// paper over. Confirmed live again: this isn't a single bad entry —
+    /// on one real server, the *entire* Fireworks block (5 consecutive
+    /// catalog entries) 404s the same way, followed by a Gemini entry that
+    /// 404s for an unrelated upstream reason. So this tries a generous
+    /// number of real candidates in order and only moves to the next on
+    /// that exact 404 shape; any other error (auth, budget, rate limit,
+    /// content policy) is real and surfaces immediately rather than
+    /// masking it behind a pointless retry.
     private func generate(kind: MediaKind, prompt: String) async throws -> (MediaGenerationResult, modelID: String) {
         let candidates = try await mediaModelCandidates(for: kind)
         guard !candidates.isEmpty else {
             throw OmniRouteError.unknown(description: "Aucun modèle disponible pour la génération (\(kind.label.lowercased())) sur ce serveur.")
         }
         var lastNotFoundError: OmniRouteError?
-        for modelID in candidates.prefix(5) {
+        for modelID in candidates.prefix(20) {
             do {
                 return (try await performMediaGeneration(kind: kind, modelID: modelID, prompt: prompt), modelID)
             } catch let error as OmniRouteError {

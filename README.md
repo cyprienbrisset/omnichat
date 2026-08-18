@@ -101,7 +101,10 @@ modèle dans son propre catalogue (`GET /v1/images/generations` par
 exemple) dont la route de génération renvoie quand même un vrai `404`
 (constaté en direct sur une entrée Fireworks précise) — un problème
 d'enregistrement côté fournisseur, pas quelque chose qu'un simple « prendre
-le premier de la liste » peut masquer. OmniChat essaie donc jusqu'à 5
+le premier de la liste » peut masquer. Constaté aussi : ce n'est pas une
+entrée isolée — sur un serveur réel, tout un bloc de 5 entrées Fireworks
+consécutives échoue de la même façon, suivi d'une entrée Gemini qui échoue
+aussi (pour une raison amont différente). OmniChat essaie donc jusqu'à 20
 modèles candidats du catalogue dans l'ordre, et ne passe au suivant que
 sur ce `404` précis — toute autre erreur (auth, quota, budget, politique de
 contenu) est réelle et remonte immédiatement, sans nouvelle tentative
