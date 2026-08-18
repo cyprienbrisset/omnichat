@@ -52,12 +52,18 @@ Lancer tous les tests (kit + app) :
 xcodebuild test -project OmniChat.xcodeproj -scheme OmniChat -destination 'platform=macOS'
 ```
 
-**Signature de code locale requise.** L'app utilise le trousseau à protection de
-données (`kSecUseDataProtectionKeychain`) pour stocker la clé API, ce qui
-nécessite une signature réelle (pas seulement ad-hoc). `project.yml` configure
-`CODE_SIGN_STYLE: Automatic` sans figer d'équipe Apple Developer (pour rester
-portable entre machines/CI). Avant de builder ou tester, fournis ton propre
-identifiant d'équipe :
+**Compte Apple Developer local requis.** L'app utilise le trousseau à
+protection de données (`kSecUseDataProtectionKeychain` +
+`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`) pour stocker la clé API, afin
+qu'elle ne puisse pas se synchroniser via iCloud Keychain — un choix de
+sécurité assumé, pas un oubli. Cela exige une signature de code réelle
+(pas seulement ad-hoc), donc **builder ou tester ce projet nécessite un
+compte Apple Developer (gratuit ou payant) configuré dans Xcode, avec un
+profil de provisioning pour l'identifiant `online.omniroute.omnichat`** —
+ce n'est pas portable sur une machine ou un CI vierge sans ça.
+`project.yml` configure `CODE_SIGN_STYLE: Automatic` sans figer d'équipe
+(pour éviter de committer un identifiant d'équipe personnel) ; fournis le
+tien :
 
 ```bash
 xcodebuild build DEVELOPMENT_TEAM=TONIDENTIFIANT ...
