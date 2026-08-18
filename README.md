@@ -122,6 +122,10 @@ vidéo, audio, rerank et modération (confirmé en direct — `/v1/models`
 « Returns all chat, embedding, and image models + combos »), et choisir
 par erreur un modèle non-chat y échouait avec un vrai 400/404 côté serveur
 (`"is an image-generation model and cannot be used on /v1/chat/completions"`).
+Le casier propose aussi désormais une entrée « auto » fixe en tête de
+liste (le routage automatique réel, mais qui n'apparaît jamais dans
+`/v1/models` lui-même) — sans elle, une conversation dont le modèle avait
+été changé ne pouvait plus jamais revenir au routage automatique.
 
 ## Gestion des conversations
 
@@ -167,6 +171,15 @@ une mauvaise étiquette, ces réponses sont affichées telles quelles (liste
 brute clé/valeur triée). Seule la liste des outils (`name`, `description`,
 `scopes`, `phase`, `auditLevel`, `sourceEndpoints`) a une forme documentée
 et un rendu dédié.
+
+**Correctif :** le parsing des listes (outils, journal d'audit) essayait
+seulement 3 formes d'enveloppe (`data`/`tools`/`entries`/`logs`) et
+échouait sur toute autre forme avec une erreur « unrecognized shape » peu
+utile. Il essaie maintenant aussi `result`/`items`, et en dernier recours,
+cherche n'importe quel tableau présent au premier niveau de la réponse —
+quel que soit son nom de clé — avant d'abandonner. Toujours honnête : si
+vraiment aucun tableau n'est trouvé, l'erreur reste claire plutôt que
+d'inventer une liste vide.
 
 Le journal d'audit (« Activité récente ») montre les appels d'outils MCP
 *réellement* effectués contre ce serveur, par n'importe quel client. Ce
@@ -223,6 +236,16 @@ peuvent être joints comme contexte au prochain message envoyé (message
 `system` transitoire, jamais persisté comme un vrai message de la
 conversation). L'import de documents externes n'est pas implémenté — seul
 l'historique des conversations déjà dans OmniChat est indexable.
+
+**Correctif confirmé empiriquement :** le bouton « Indexer » (et la
+recherche, et l'outil `search_local_history`) ne faisaient confiance qu'au
+tout premier modèle d'embedding du catalogue — le même problème que pour
+la génération média (un modèle listé peut appartenir à un fournisseur non
+configuré). La résolution du modèle d'embedding essaie maintenant
+plusieurs candidats réels avec un vrai appel de test, jusqu'à en trouver un
+qui fonctionne, et réutilise le même pour l'indexation et la recherche
+d'une même session (des vecteurs de modèles différents ne sont jamais
+comparables).
 
 ## Comparaison multi-modèles
 

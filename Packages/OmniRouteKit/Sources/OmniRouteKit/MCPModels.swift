@@ -49,7 +49,43 @@ func parseMCPToolListResponse(_ data: Data) throws -> [MCPTool] {
     if let wrapped = try? decoder.decode(ToolsWrapper.self, from: data) {
         return wrapped.tools
     }
+    struct ResultWrapper: Decodable { let result: [MCPTool] }
+    if let wrapped = try? decoder.decode(ResultWrapper.self, from: data) {
+        return wrapped.result
+    }
+    struct ItemsWrapper: Decodable { let items: [MCPTool] }
+    if let wrapped = try? decoder.decode(ItemsWrapper.self, from: data) {
+        return wrapped.items
+    }
+    // Last resort: none of the known wrapper keys matched — rather than
+    // fail outright on a wrapper name this app hasn't seen, look for *any*
+    // top-level array and try to decode its elements as tools, skipping
+    // ones that don't fit. Still throws if genuinely nothing usable is found.
+    if let top = try? decoder.decode(JSONValue.self, from: data), let array = firstArray(in: top) {
+        let decoded = array.compactMap { item -> MCPTool? in
+            guard let itemData = try? JSONSerialization.data(withJSONObject: item.foundationObject) else { return nil }
+            return try? decoder.decode(MCPTool.self, from: itemData)
+        }
+        if !decoded.isEmpty { return decoded }
+    }
     throw MCPResponseParsingError.unrecognizedShape
+}
+
+/// Finds the first JSON array anywhere at the top level of a value — either
+/// the value itself, or the first array-valued field of an object (checked
+/// in a stable, sorted key order).
+private func firstArray(in value: JSONValue) -> [JSONValue]? {
+    switch value {
+    case .array(let values):
+        return values
+    case .object(let fields):
+        for key in fields.keys.sorted() {
+            if case .array(let values) = fields[key]! { return values }
+        }
+        return nil
+    default:
+        return nil
+    }
 }
 
 /// A JSON value with no assumed shape — used where the API reference only
@@ -81,6 +117,22 @@ public indirect enum JSONValue: Decodable, Sendable, Equatable {
             self = .object(value)
         } else {
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported JSON value")
+        }
+    }
+
+    /// Bridges to a plain Foundation object tree so a value decoded once as
+    /// `JSONValue` can be re-serialized and decoded again as a concrete
+    /// type — used only as a last-resort fallback when no known wrapper
+    /// key matches a list response, to avoid hard-failing on a wrapper
+    /// shape this app hasn't seen yet.
+    var foundationObject: Any {
+        switch self {
+        case .string(let value): return value
+        case .number(let value): return value
+        case .bool(let value): return value
+        case .null: return NSNull()
+        case .array(let values): return values.map(\.foundationObject)
+        case .object(let fields): return fields.mapValues { $0.foundationObject }
         }
     }
 
@@ -145,6 +197,11 @@ func parseMCPAuditListResponse(_ data: Data) throws -> [MCPRawSnapshot] {
     struct LogsWrapper: Decodable { let logs: [JSONValue] }
     if let wrapped = try? decoder.decode(LogsWrapper.self, from: data) {
         return try objects(from: wrapped.logs)
+    }
+    // Same last-resort fallback as `parseMCPToolListResponse`.
+    if let top = try? decoder.decode(JSONValue.self, from: data), let array = firstArray(in: top),
+       let objs = try? objects(from: array), !objs.isEmpty {
+        return objs
     }
     throw MCPResponseParsingError.unrecognizedShape
 }

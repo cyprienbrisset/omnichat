@@ -17,6 +17,40 @@ struct ScoredPassage: Identifiable {
 /// real `/v1/embeddings` vectors the user explicitly indexed. Document
 /// import isn't implemented — only conversations already in OmniChat.
 enum SearchIndexService {
+    /// Tries each embedding-capable model from the server's own catalog
+    /// with a tiny real test call, in order, until one actually succeeds.
+    /// Confirmed live (the same pattern found in media generation): a
+    /// server can list a model in its own catalog whose provider isn't
+    /// actually configured — the catalog listing alone gives no hint of
+    /// this, only an actual call does. Only retries on the specific
+    /// failure shapes observed for "this provider isn't usable" (404
+    /// routing errors, 401/403 auth/key-limit errors); any other error
+    /// (malformed input, rate limit, network) is real and stops the search
+    /// immediately rather than masking it.
+    @MainActor
+    static func resolveWorkingEmbeddingModel(client: EmbeddingGenerating) async throws -> String {
+        let candidates = try await client.listEmbeddingModels().map(\.id)
+        guard !candidates.isEmpty else {
+            throw OmniRouteError.unknown(description: "Aucun modèle d'embedding disponible sur ce serveur.")
+        }
+        var lastError: OmniRouteError?
+        for modelID in candidates.prefix(10) {
+            do {
+                _ = try await client.createEmbedding(model: modelID, input: "test")
+                return modelID
+            } catch let error as OmniRouteError {
+                switch error {
+                case .invalidResponse(404), .authenticationFailed:
+                    lastError = error
+                    continue
+                default:
+                    throw error
+                }
+            }
+        }
+        throw lastError ?? OmniRouteError.unknown(description: "Aucun modèle d'embedding disponible sur ce serveur.")
+    }
+
     /// Deletes this conversation's existing passages and re-embeds every
     /// message fresh — a real `/v1/embeddings` call per message, so this
     /// only runs when the user explicitly asks for it.

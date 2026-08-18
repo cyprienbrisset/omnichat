@@ -37,7 +37,10 @@ struct SearchLocalHistoryTool: LocalTool {
               let arguments = try? JSONDecoder().decode(Arguments.self, from: data) else {
             return "Erreur : arguments invalides pour search_local_history."
         }
-        guard let embeddingModel = try await client.listEmbeddingModels().first?.id else {
+        let embeddingModel: String
+        do {
+            embeddingModel = try await SearchIndexService.resolveWorkingEmbeddingModel(client: client)
+        } catch {
             return "Aucun modèle d'embedding disponible sur ce serveur."
         }
         let results = try await SearchIndexService.search(

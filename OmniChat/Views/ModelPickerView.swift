@@ -81,7 +81,7 @@ struct ModelPickerView: View {
                 Spacer()
             }
         case .loaded:
-            if filteredModels.isEmpty {
+            if !showsAutoRow && filteredModels.isEmpty {
                 VStack {
                     Spacer()
                     Text("Aucun modèle ne correspond.")
@@ -92,6 +92,17 @@ struct ModelPickerView: View {
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        if showsAutoRow {
+                            Section {
+                                autoRow
+                            } header: {
+                                OmniTheme.label("Routage automatique", size: 9, color: OmniTheme.inkSoft)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(OmniTheme.paper)
+                            }
+                        }
                         ForEach(groupedModels, id: \.provider) { group in
                             Section {
                                 ForEach(group.models, id: \.id) { model in
@@ -110,6 +121,42 @@ struct ModelPickerView: View {
                 .background(OmniTheme.paper)
             }
         }
+    }
+
+    /// `"auto"` is a real, working routing alias (confirmed live) but never
+    /// appears in `/v1/models` itself — without this synthetic row, a
+    /// conversation that had a specific model picked could never go back to
+    /// automatic routing through this picker.
+    private var showsAutoRow: Bool {
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        return query.isEmpty || "auto".localizedCaseInsensitiveContains(query)
+    }
+
+    private var autoRow: some View {
+        Button {
+            onSelect("auto")
+            dismiss()
+        } label: {
+            HStack {
+                Text("auto")
+                    .font(OmniTheme.mono(12, weight: .medium))
+                    .foregroundStyle(OmniTheme.ink)
+                Text("laisse OmniRoute choisir")
+                    .font(OmniTheme.serif(11).italic())
+                    .foregroundStyle(OmniTheme.inkSoft)
+                Spacer()
+                if currentModelID == "auto" {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(OmniTheme.accent)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(currentModelID == "auto" ? OmniTheme.paperMuted : Color.clear)
     }
 
     private func modelRow(_ model: ModelInfo) -> some View {

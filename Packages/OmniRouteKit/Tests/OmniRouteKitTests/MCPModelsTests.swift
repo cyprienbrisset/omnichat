@@ -19,6 +19,27 @@ final class MCPModelsTests: XCTestCase {
         XCTAssertEqual(tools[0].name, "t1")
     }
 
+    func test_parseMCPToolListResponse_parsesResultWrapper() throws {
+        let json = #"{"result":[{"name":"t2"}]}"#
+        let tools = try parseMCPToolListResponse(Data(json.utf8))
+        XCTAssertEqual(tools.map(\.name), ["t2"])
+    }
+
+    func test_parseMCPToolListResponse_parsesItemsWrapper() throws {
+        let json = #"{"items":[{"name":"t3"}]}"#
+        let tools = try parseMCPToolListResponse(Data(json.utf8))
+        XCTAssertEqual(tools.map(\.name), ["t3"])
+    }
+
+    /// A wrapper key this app has never seen (e.g. a hypothetical
+    /// `"toolsList"`) shouldn't hard-fail — the fallback finds the array
+    /// regardless of what it's keyed under.
+    func test_parseMCPToolListResponse_unknownWrapperKey_fallsBackToAnyArray() throws {
+        let json = #"{"toolsList":[{"name":"t4"}],"meta":{"count":1}}"#
+        let tools = try parseMCPToolListResponse(Data(json.utf8))
+        XCTAssertEqual(tools.map(\.name), ["t4"])
+    }
+
     func test_parseMCPToolListResponse_unrecognizedShape_throws() {
         XCTAssertThrowsError(try parseMCPToolListResponse(Data(#"{"nope":true}"#.utf8)))
     }
@@ -49,6 +70,12 @@ final class MCPModelsTests: XCTestCase {
         let entries = try parseMCPAuditListResponse(Data(json.utf8))
         XCTAssertEqual(entries.count, 1)
         XCTAssertEqual(entries[0].fields["tool"], .string("quota_status"))
+    }
+
+    func test_parseMCPAuditListResponse_unknownWrapperKey_fallsBackToAnyArray() throws {
+        let json = #"{"auditLog":[{"tool":"web_search"}]}"#
+        let entries = try parseMCPAuditListResponse(Data(json.utf8))
+        XCTAssertEqual(entries.map { $0.fields["tool"] }, [.string("web_search")])
     }
 
     func test_parseMCPAuditListResponse_unrecognizedShape_throws() {

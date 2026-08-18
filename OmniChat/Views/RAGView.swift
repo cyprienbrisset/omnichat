@@ -189,12 +189,7 @@ struct RAGView: View {
         guard embeddingModelID == nil else { return }
         let client = OmniRouteClient(profile: appEnvironment.activeProfile, credentialStore: appEnvironment.credentialStore)
         do {
-            let models = try await client.listEmbeddingModels()
-            guard let first = models.first else {
-                embeddingModelError = "Aucun modèle d'embedding disponible sur ce serveur."
-                return
-            }
-            embeddingModelID = first.id
+            embeddingModelID = try await SearchIndexService.resolveWorkingEmbeddingModel(client: client)
         } catch let error as OmniRouteError {
             embeddingModelError = error.userMessage
         } catch {
