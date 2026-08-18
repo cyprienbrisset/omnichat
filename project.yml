@@ -21,6 +21,11 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: OmniChat/OmniChat.entitlements
+    info:
+      path: OmniChat/Info.plist
+      properties:
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
   OmniChatTests:
     type: bundle.unit-test
     platform: macOS
