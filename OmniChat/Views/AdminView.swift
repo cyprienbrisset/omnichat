@@ -13,13 +13,13 @@ struct AdminView: View {
     @State private var section: Section = .providers
 
     private enum Section: String, CaseIterable, Identifiable {
-        case providers, budget, tokenLimits
+        case providers, budget, quotas
         var id: String { rawValue }
         var label: String {
             switch self {
             case .providers: "Fournisseurs"
             case .budget: "Budget"
-            case .tokenLimits: "Limites de jetons"
+            case .quotas: "Limites & quotas"
             }
         }
     }
@@ -33,7 +33,7 @@ struct AdminView: View {
             switch section {
             case .providers: ProvidersSectionView()
             case .budget: BudgetSectionView()
-            case .tokenLimits: TokenLimitsSectionView()
+            case .quotas: QuotasSectionView()
             }
         }
         .background(OmniTheme.paper)
@@ -82,7 +82,85 @@ struct AdminView: View {
     }
 }
 
+// MARK: - Shared raw-field rendering (undocumented shapes)
+
+/// Every raw key/value pair a management-API resource returned, sorted for
+/// stable display — the honest fallback whenever a shape isn't documented.
+private struct RawFieldRows: View {
+    let entries: [(key: String, value: String)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(entries, id: \.key) { entry in
+                HStack(alignment: .top, spacing: 8) {
+                    Text(entry.key)
+                        .font(OmniTheme.mono(9, weight: .semibold))
+                        .foregroundStyle(OmniTheme.inkSoft)
+                        .frame(width: 130, alignment: .leading)
+                    Text(entry.value)
+                        .font(OmniTheme.mono(10))
+                        .foregroundStyle(OmniTheme.ink)
+                }
+            }
+        }
+    }
+}
+
+/// Folds the fields a card already surfaced prominently out of the raw
+/// dump — expandable on demand, same "Afficher tout" pattern used for long
+/// tool results in the chat thread, rather than a permanent wall of text.
+private struct CollapsibleRawFields: View {
+    let collapsedLabel: String
+    let entries: [(key: String, value: String)]
+    @State private var isExpanded = false
+
+    var body: some View {
+        if !entries.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Button(isExpanded ? "Masquer les détails bruts" : collapsedLabel) {
+                    isExpanded.toggle()
+                }
+                .buttonStyle(.omniLink)
+                if isExpanded {
+                    RawFieldRows(entries: entries)
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Providers
+
+/// The handful of concepts almost any provider row is likely to carry
+/// (name, provider type, status, rate-limit lockout), pulled out of the raw
+/// snapshot under several candidate key names — everything else stays in
+/// the raw, collapsible fallback rather than being guessed at.
+private struct ProviderDisplayFields {
+    let name: String?
+    let providerType: String?
+    let status: String?
+    let rateLimitedUntil: String?
+    let remainingFields: [(key: String, value: String)]
+
+    private static let knownKeys: Set<String> = [
+        "name", "label", "provider", "type", "providerType", "status", "enabled",
+        "rateLimitedUntil", "id", "providerId", "_id", "slug",
+    ]
+
+    init(_ snapshot: AdminRawSnapshot) {
+        func firstString(_ keys: [String]) -> String? {
+            for key in keys {
+                if case .string(let value)? = snapshot.fields[key] { return value }
+            }
+            return nil
+        }
+        name = firstString(["name", "label"])
+        providerType = firstString(["provider", "type", "providerType"])
+        status = firstString(["status"]) ?? snapshot.fields["enabled"].map(\.displayValue)
+        rateLimitedUntil = firstString(["rateLimitedUntil"])
+        remainingFields = snapshot.sortedEntries.filter { !Self.knownKeys.contains($0.key) }
+    }
+}
 
 private struct ProvidersSectionView: View {
     @Environment(AppEnvironment.self) private var appEnvironment
@@ -100,7 +178,7 @@ private struct ProvidersSectionView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("La forme exacte de /api/providers n'est pas documentée — cette liste s'affiche telle quelle.")
+                Text("La forme exacte de /api/providers n'est pas documentée — les champs reconnus (nom, type, statut) sont mis en avant, le reste reste consultable en détail.")
                     .font(OmniTheme.serif(11).italic())
                     .foregroundStyle(OmniTheme.inkSoft)
                 Spacer()
@@ -175,20 +253,42 @@ private struct ProvidersSectionView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private func statusColor(_ status: String) -> Color {
+        switch status.lowercased() {
+        case "active", "true", "enabled", "ok", "healthy": return OmniTheme.success
+        case "false", "disabled", "inactive": return OmniTheme.inkSoft
+        default: return OmniTheme.warning
+        }
+    }
+
     private func providerRow(_ provider: AdminRawSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let display = ProviderDisplayFields(provider)
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(provider.sortedEntries, id: \.key) { entry in
-                        HStack(alignment: .top, spacing: 8) {
-                            Text(entry.key)
-                                .font(OmniTheme.mono(9, weight: .semibold))
-                                .foregroundStyle(OmniTheme.inkSoft)
-                                .frame(width: 110, alignment: .leading)
-                            Text(entry.value)
-                                .font(OmniTheme.mono(10))
-                                .foregroundStyle(OmniTheme.ink)
+                    HStack(spacing: 8) {
+                        Text(display.name ?? provider.id)
+                            .font(OmniTheme.serif(15, weight: .semibold))
+                            .foregroundStyle(OmniTheme.ink)
+                        if let providerType = display.providerType {
+                            OmniTheme.label(providerType, size: 8, color: OmniTheme.accent)
                         }
+                    }
+                    Text(provider.id)
+                        .font(OmniTheme.mono(9))
+                        .foregroundStyle(OmniTheme.inkSoft)
+                    if let status = display.status {
+                        HStack(spacing: 5) {
+                            Circle().fill(statusColor(status)).frame(width: 6, height: 6)
+                            Text(status)
+                                .font(OmniTheme.mono(9))
+                                .foregroundStyle(OmniTheme.inkSoft)
+                        }
+                    }
+                    if let rateLimitedUntil = display.rateLimitedUntil {
+                        Text("Limité (rate limit) jusqu'à \(rateLimitedUntil)")
+                            .font(OmniTheme.mono(9))
+                            .foregroundStyle(OmniTheme.warning)
                     }
                 }
                 Spacer()
@@ -204,9 +304,13 @@ private struct ProvidersSectionView: View {
                     .font(OmniTheme.mono(9))
                     .foregroundStyle(OmniTheme.accent)
             }
+            CollapsibleRawFields(
+                collapsedLabel: "Afficher tous les champs (\(display.remainingFields.count))",
+                entries: display.remainingFields
+            )
         }
         .padding(.horizontal, 24)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
     }
 
     private func load() async {
@@ -326,7 +430,11 @@ private struct BudgetSectionView: View {
     @State private var budgets: [BudgetEntry] = []
     @State private var loadState: LoadState = .loading
     @State private var apiKeyIDInput = ""
-    @State private var monthlyLimitInput = ""
+    @State private var dailyInput = ""
+    @State private var weeklyInput = ""
+    @State private var monthlyInput = ""
+    @State private var warningThresholdPercentInput = ""
+    @State private var resetInterval = "monthly"
     @State private var setError: String?
     @State private var isSaving = false
 
@@ -334,9 +442,17 @@ private struct BudgetSectionView: View {
         case loading, loaded, failed(String)
     }
 
+    private static let resetIntervals = ["daily", "weekly", "monthly"]
+
+    private var canSave: Bool {
+        guard !apiKeyIDInput.isEmpty, !isSaving else { return false }
+        return Double(dailyInput) != nil || Double(weeklyInput) != nil || Double(monthlyInput) != nil
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            form
+            ScrollView { form }
+                .frame(maxHeight: 260)
             Rectangle().fill(OmniTheme.hairline).frame(height: 1)
             content
         }
@@ -344,26 +460,35 @@ private struct BudgetSectionView: View {
     }
 
     private var form: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             OmniTheme.label("Définir un budget", size: 9, color: OmniTheme.inkSoft)
-            Text("Trouve l'identifiant de la clé (apiKeyId) dans le tableau de bord OmniRoute.")
+            Text("Trouve l'identifiant de la clé (apiKeyId) dans le tableau de bord OmniRoute. Au moins une des trois limites est requise.")
                 .font(OmniTheme.serif(11).italic())
                 .foregroundStyle(OmniTheme.inkSoft)
+
+            labeledField("apiKeyId", text: $apiKeyIDInput, width: nil)
+
             HStack(spacing: 10) {
-                TextField("apiKeyId", text: $apiKeyIDInput)
-                    .textFieldStyle(.plain)
-                    .font(OmniTheme.mono(11))
-                    .padding(8)
-                    .background(OmniTheme.paperMuted)
-                TextField("Limite mensuelle (USD)", text: $monthlyLimitInput)
-                    .textFieldStyle(.plain)
-                    .font(OmniTheme.mono(11))
-                    .padding(8)
-                    .background(OmniTheme.paperMuted)
-                    .frame(width: 160)
+                labeledField("Jour (USD)", text: $dailyInput, width: 130)
+                labeledField("Semaine (USD)", text: $weeklyInput, width: 130)
+                labeledField("Mois (USD)", text: $monthlyInput, width: 130)
+            }
+            HStack(spacing: 10) {
+                labeledField("Seuil d'alerte (%)", text: $warningThresholdPercentInput, width: 130)
+                VStack(alignment: .leading, spacing: 4) {
+                    OmniTheme.label("Réinitialisation", size: 8, color: OmniTheme.inkSoft)
+                    Picker("", selection: $resetInterval) {
+                        ForEach(Self.resetIntervals, id: \.self) { interval in
+                            Text(intervalLabel(interval)).tag(interval)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                }
+                Spacer()
                 Button(isSaving ? "…" : "Enregistrer") { Task { await save() } }
                     .buttonStyle(.omniLink)
-                    .disabled(apiKeyIDInput.isEmpty || Double(monthlyLimitInput) == nil || isSaving)
+                    .disabled(!canSave)
             }
             if let setError {
                 Text(setError)
@@ -373,6 +498,26 @@ private struct BudgetSectionView: View {
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 14)
+    }
+
+    private func labeledField(_ label: String, text: Binding<String>, width: CGFloat?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            OmniTheme.label(label, size: 8, color: OmniTheme.inkSoft)
+            TextField("", text: text)
+                .textFieldStyle(.plain)
+                .font(OmniTheme.mono(11))
+                .padding(8)
+                .background(OmniTheme.paperMuted)
+                .frame(width: width)
+        }
+    }
+
+    private func intervalLabel(_ interval: String) -> String {
+        switch interval {
+        case "daily": "Quotidienne"
+        case "weekly": "Hebdomadaire"
+        default: "Mensuelle"
+        }
     }
 
     @ViewBuilder
@@ -420,6 +565,12 @@ private struct BudgetSectionView: View {
                 if let monthly = budget.monthlyLimitUsd {
                     Text("Mois : \(String(format: "%.2f $", monthly))").font(OmniTheme.mono(9)).foregroundStyle(OmniTheme.inkSoft)
                 }
+                if let warningThreshold = budget.warningThreshold {
+                    Text("Alerte à \(Int(warningThreshold * 100))%").font(OmniTheme.mono(9)).foregroundStyle(OmniTheme.warning)
+                }
+                if let resetInterval = budget.resetInterval {
+                    Text(resetInterval).font(OmniTheme.mono(9)).foregroundStyle(OmniTheme.inkSoft)
+                }
             }
         }
         .padding(.horizontal, 24)
@@ -441,13 +592,20 @@ private struct BudgetSectionView: View {
     }
 
     private func save() async {
-        guard let monthly = Double(monthlyLimitInput) else { return }
         isSaving = true
         defer { isSaving = false }
         setError = nil
+        let warningThreshold = Double(warningThresholdPercentInput).map { $0 / 100 }
         let client = OmniRouteClient(profile: appEnvironment.activeProfile, credentialStore: appEnvironment.credentialStore)
         do {
-            try await client.setBudget(SetBudgetRequest(apiKeyId: apiKeyIDInput, monthlyLimitUsd: monthly, resetInterval: "monthly"))
+            try await client.setBudget(SetBudgetRequest(
+                apiKeyId: apiKeyIDInput,
+                dailyLimitUsd: Double(dailyInput),
+                weeklyLimitUsd: Double(weeklyInput),
+                monthlyLimitUsd: Double(monthlyInput),
+                warningThreshold: warningThreshold,
+                resetInterval: resetInterval
+            ))
             await load()
         } catch let error as OmniRouteError {
             setError = error.userMessage
@@ -457,58 +615,90 @@ private struct BudgetSectionView: View {
     }
 }
 
-// MARK: - Token limits
+// MARK: - Quotas (token limits per scope + account rate-limit status)
 
-private struct TokenLimitsSectionView: View {
+private enum TokenLimitScope: String, CaseIterable, Identifiable {
+    case global, model, provider
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .global: "Global"
+        case .model: "Modèle"
+        case .provider: "Fournisseur"
+        }
+    }
+}
+
+private struct QuotasSectionView: View {
     @Environment(AppEnvironment.self) private var appEnvironment
     @State private var apiKeyIDInput = ""
     @State private var limits: [TokenLimitEntry] = []
     @State private var loadState: LoadState = .idle
+    @State private var scope: TokenLimitScope = .provider
     @State private var scopeValueInput = ""
     @State private var tokenLimitInput = ""
     @State private var setError: String?
     @State private var isSaving = false
+    @State private var rateLimitStatus: AdminRawSnapshot?
+    @State private var rateLimitError: String?
 
     private enum LoadState: Equatable {
         case idle, loading, loaded, failed(String)
     }
 
+    private var canSave: Bool {
+        guard !apiKeyIDInput.isEmpty, Int(tokenLimitInput) != nil, !isSaving else { return false }
+        return scope == .global || !scopeValueInput.isEmpty
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            form
-            Rectangle().fill(OmniTheme.hairline).frame(height: 1)
-            content
+        ScrollView {
+            VStack(spacing: 0) {
+                form
+                Rectangle().fill(OmniTheme.hairline).frame(height: 1)
+                limitsContent
+                Rectangle().fill(OmniTheme.hairline).frame(height: 1)
+                rateLimitStatusSection
+            }
         }
+        .task { await loadRateLimitStatus() }
     }
 
     private var form: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            OmniTheme.label("Limites de jetons par clé", size: 9, color: OmniTheme.inkSoft)
+        VStack(alignment: .leading, spacing: 10) {
+            OmniTheme.label("Limites de jetons — quota restant par portée", size: 9, color: OmniTheme.inkSoft)
+            Text("Une limite en portée « Fournisseur » est le vrai quota restant par fournisseur pour cette clé — /api/usage/token-limits renvoie tokensUsed/remaining une fois définie.")
+                .font(OmniTheme.serif(11).italic())
+                .foregroundStyle(OmniTheme.inkSoft)
+
             HStack(spacing: 10) {
-                TextField("apiKeyId", text: $apiKeyIDInput)
-                    .textFieldStyle(.plain)
-                    .font(OmniTheme.mono(11))
-                    .padding(8)
-                    .background(OmniTheme.paperMuted)
+                labeledField("apiKeyId", text: $apiKeyIDInput, width: nil)
                 Button("Charger") { Task { await load() } }
                     .buttonStyle(.omniLink)
                     .disabled(apiKeyIDInput.isEmpty)
             }
+
+            Picker("", selection: $scope) {
+                ForEach(TokenLimitScope.allCases) { candidate in
+                    Text(candidate.label).tag(candidate)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 320)
+
             HStack(spacing: 10) {
-                TextField("Portée (global, ou id de modèle/fournisseur)", text: $scopeValueInput)
-                    .textFieldStyle(.plain)
-                    .font(OmniTheme.mono(11))
-                    .padding(8)
-                    .background(OmniTheme.paperMuted)
-                TextField("Limite (jetons)", text: $tokenLimitInput)
-                    .textFieldStyle(.plain)
-                    .font(OmniTheme.mono(11))
-                    .padding(8)
-                    .background(OmniTheme.paperMuted)
-                    .frame(width: 140)
+                if scope != .global {
+                    labeledField(
+                        scope == .provider ? "Identifiant du fournisseur" : "Identifiant du modèle",
+                        text: $scopeValueInput,
+                        width: 220
+                    )
+                }
+                labeledField("Limite (jetons)", text: $tokenLimitInput, width: 140)
                 Button(isSaving ? "…" : "Ajouter") { Task { await save() } }
                     .buttonStyle(.omniLink)
-                    .disabled(apiKeyIDInput.isEmpty || Int(tokenLimitInput) == nil || isSaving)
+                    .disabled(!canSave)
             }
             if let setError {
                 Text(setError).font(OmniTheme.mono(9)).foregroundStyle(OmniTheme.danger)
@@ -518,56 +708,124 @@ private struct TokenLimitsSectionView: View {
         .padding(.vertical, 14)
     }
 
+    private func labeledField(_ label: String, text: Binding<String>, width: CGFloat?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            OmniTheme.label(label, size: 8, color: OmniTheme.inkSoft)
+            TextField("", text: text)
+                .textFieldStyle(.plain)
+                .font(OmniTheme.mono(11))
+                .padding(8)
+                .background(OmniTheme.paperMuted)
+                .frame(width: width)
+        }
+    }
+
     @ViewBuilder
-    private var content: some View {
+    private var limitsContent: some View {
         switch loadState {
         case .idle:
-            centeredMessage("Renseigne un apiKeyId puis charge ses limites.")
+            centeredMessage("Renseigne un apiKeyId puis charge ses limites.", minHeight: 140)
         case .loading:
-            centeredMessage("Chargement…")
+            centeredMessage("Chargement…", minHeight: 140)
         case .failed(let message):
-            centeredMessage(message)
+            centeredMessage(message, minHeight: 140)
         case .loaded:
             if limits.isEmpty {
-                centeredMessage("Aucune limite de jetons pour cette clé.")
+                centeredMessage("Aucune limite de jetons pour cette clé.", minHeight: 140)
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(limits) { limit in
-                            limitRow(limit)
-                            Rectangle().fill(OmniTheme.hairline).frame(height: 1)
-                        }
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(limits) { limit in
+                        limitRow(limit)
+                        Rectangle().fill(OmniTheme.hairline).frame(height: 1)
                     }
                 }
             }
         }
     }
 
-    private func centeredMessage(_ text: String) -> some View {
+    private func centeredMessage(_ text: String, minHeight: CGFloat) -> some View {
         VStack {
-            Spacer()
-            Text(text).font(OmniTheme.serif(13).italic()).foregroundStyle(OmniTheme.inkSoft).multilineTextAlignment(.center).frame(maxWidth: 380)
-            Spacer()
+            Text(text)
+                .font(OmniTheme.serif(13).italic())
+                .foregroundStyle(OmniTheme.inkSoft)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 380)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, minHeight: minHeight)
+    }
+
+    private func remainingFraction(_ limit: TokenLimitEntry) -> Double? {
+        guard let remaining = limit.remaining, limit.tokenLimit > 0 else { return nil }
+        return max(0, min(1, Double(remaining) / Double(limit.tokenLimit)))
+    }
+
+    private func progressTint(_ fraction: Double) -> Color {
+        if fraction < 0.15 { return OmniTheme.danger }
+        if fraction < 0.4 { return OmniTheme.warning }
+        return OmniTheme.success
     }
 
     private func limitRow(_ limit: TokenLimitEntry) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(limit.scopeType)\(limit.scopeValue.map { " · \($0)" } ?? "")")
-                    .font(OmniTheme.mono(10, weight: .semibold))
-                    .foregroundStyle(OmniTheme.ink)
-                Text("\(limit.tokensUsed ?? 0) / \(limit.tokenLimit) jetons" + (limit.resetInterval.map { " · \($0)" } ?? ""))
-                    .font(OmniTheme.mono(9))
-                    .foregroundStyle(OmniTheme.inkSoft)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        OmniTheme.label(limit.scopeType, size: 8, color: OmniTheme.accent)
+                        if let scopeValue = limit.scopeValue {
+                            Text(scopeValue)
+                                .font(OmniTheme.mono(11, weight: .semibold))
+                                .foregroundStyle(OmniTheme.ink)
+                        }
+                    }
+                    if let remaining = limit.remaining {
+                        Text("\(remaining) restants sur \(limit.tokenLimit) jetons" + (limit.resetInterval.map { " · \($0)" } ?? ""))
+                            .font(OmniTheme.mono(9))
+                            .foregroundStyle(OmniTheme.inkSoft)
+                    } else {
+                        Text("\(limit.tokensUsed ?? 0) / \(limit.tokenLimit) jetons utilisés" + (limit.resetInterval.map { " · \($0)" } ?? ""))
+                            .font(OmniTheme.mono(9))
+                            .foregroundStyle(OmniTheme.inkSoft)
+                    }
+                    if let nextResetAt = limit.nextResetAt {
+                        Text("Réinitialisation : \(nextResetAt)")
+                            .font(OmniTheme.mono(8))
+                            .foregroundStyle(OmniTheme.inkSoft)
+                    }
+                }
+                Spacer()
+                Button("Supprimer") { Task { await delete(limit) } }
+                    .buttonStyle(.omniLink)
             }
-            Spacer()
-            Button("Supprimer") { Task { await delete(limit) } }
-                .buttonStyle(.omniLink)
+            if let fraction = remainingFraction(limit) {
+                ProgressView(value: fraction)
+                    .tint(progressTint(fraction))
+            }
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 10)
+    }
+
+    private var rateLimitStatusSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            OmniTheme.label("Statut de rate-limit (par compte)", size: 9, color: OmniTheme.inkSoft)
+            Text("La forme exacte de /api/rate-limits n'est pas documentée — affiché tel quel.")
+                .font(OmniTheme.serif(11).italic())
+                .foregroundStyle(OmniTheme.inkSoft)
+            if let rateLimitError {
+                Text(rateLimitError)
+                    .font(OmniTheme.mono(9))
+                    .foregroundStyle(OmniTheme.danger)
+            } else if let rateLimitStatus {
+                RawFieldRows(entries: rateLimitStatus.sortedEntries)
+            } else {
+                Text("Chargement…")
+                    .font(OmniTheme.mono(9))
+                    .foregroundStyle(OmniTheme.inkSoft)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func load() async {
@@ -588,13 +846,12 @@ private struct TokenLimitsSectionView: View {
         isSaving = true
         defer { isSaving = false }
         setError = nil
-        let scopeType = scopeValueInput.isEmpty || scopeValueInput.lowercased() == "global" ? "global" : "model"
         let client = OmniRouteClient(profile: appEnvironment.activeProfile, credentialStore: appEnvironment.credentialStore)
         do {
             try await client.setTokenLimit(SetTokenLimitRequest(
                 apiKeyId: apiKeyIDInput,
-                scopeType: scopeType,
-                scopeValue: scopeType == "global" ? nil : scopeValueInput,
+                scopeType: scope.rawValue,
+                scopeValue: scope == .global ? nil : scopeValueInput,
                 tokenLimit: tokenLimit
             ))
             await load()
@@ -614,6 +871,17 @@ private struct TokenLimitsSectionView: View {
             setError = error.userMessage
         } catch {
             setError = error.localizedDescription
+        }
+    }
+
+    private func loadRateLimitStatus() async {
+        let client = OmniRouteClient(profile: appEnvironment.activeProfile, credentialStore: appEnvironment.credentialStore)
+        do {
+            rateLimitStatus = try await client.fetchRateLimitStatus()
+        } catch let error as OmniRouteError {
+            rateLimitError = error.userMessage
+        } catch {
+            rateLimitError = error.localizedDescription
         }
     }
 }

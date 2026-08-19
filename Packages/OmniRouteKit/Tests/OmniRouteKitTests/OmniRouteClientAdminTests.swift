@@ -205,4 +205,22 @@ final class OmniRouteClientAdminTests: XCTestCase {
             // expected
         }
     }
+
+    func test_fetchRateLimitStatus_success_parsesRawSnapshotFromCorrectPath() async throws {
+        let profile = EndpointProfile(id: UUID(), name: "Test", baseURL: URL(string: "https://omniroute.online/v1")!)
+        let store = InMemoryCredentialStore()
+        var capturedURL: URL?
+        MockURLProtocol.requestHandler = { request in
+            capturedURL = request.url
+            let json = #"{"remaining":42,"limit":100,"resetAt":"2026-09-01T00:00:00Z"}"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+        let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
+
+        let status = try await client.fetchRateLimitStatus()
+
+        XCTAssertEqual(status.fields["remaining"], .number(42))
+        XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/api/rate-limits"))
+    }
 }

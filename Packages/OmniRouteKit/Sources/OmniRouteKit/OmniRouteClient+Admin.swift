@@ -92,6 +92,15 @@ extension OmniRouteClient {
         try await adminMutateNoContent(path: "api/usage/token-limits", method: "POST", body: request)
     }
 
+    // MARK: Rate limits (undocumented shape — raw snapshot, like Providers)
+    // "Per-account rate limit status" is the only one-line description this
+    // endpoint has; rather than guess field names, this surfaces exactly
+    // what the server sends back, the same defensive treatment as `/api/providers`.
+
+    public func fetchRateLimitStatus() async throws -> AdminRawSnapshot {
+        try await adminGET(path: "api/rate-limits", parse: parseAdminRawSnapshot)
+    }
+
     public func deleteTokenLimit(id: String) async throws {
         var attempt = 1
         while true {

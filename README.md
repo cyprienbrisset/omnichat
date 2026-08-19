@@ -384,23 +384,33 @@ que Mémoire/MCP) — une clé sans ces droits ne voit pas l'entrée du tout,
 plutôt que de la voir échouer avec une erreur d'auth. Trois écrans :
 
 - **Fournisseurs** (`GET/DELETE /api/providers`, `POST
-  /api/providers/{id}/test`) — liste brute clé/valeur (comme MCP : la forme
-  exacte n'est documentée qu'en prose, pas de noms de champs garantis),
-  bouton « Tester » par fournisseur, suppression avec confirmation. La
-  création (`POST /api/providers`) envoie un corps au mieux
-  (`{name, provider, apiKey}`) : **la forme réelle attendue n'est pas
-  documentée** dans la référence d'API. L'écran d'ajout le dit explicitement
-  et, si le serveur refuse ces champs, affiche son vrai message d'erreur
-  Zod (`throwWithServerMessage`) plutôt qu'un « requête invalide »
-  générique — pour corriger le corps en connaissance de cause plutôt que de
-  deviner à l'aveugle.
+  /api/providers/{id}/test`) — la forme exacte n'est documentée qu'en prose
+  (pas de noms de champs garantis), donc chaque fournisseur reste une
+  capture brute (`AdminRawSnapshot`), mais les champs qu'on reconnaît sous
+  plusieurs noms candidats (nom, type, statut, `rateLimitedUntil`) sont
+  désormais mis en avant dans une vraie carte — le reste des champs bruts
+  reste consultable en dépliant « Afficher tous les champs », plutôt qu'un
+  mur de clé/valeur en permanence. Bouton « Tester » par fournisseur,
+  suppression avec confirmation. La création (`POST /api/providers`)
+  envoie un corps au mieux (`{name, provider, apiKey}`) : **la forme réelle
+  attendue n'est pas documentée** dans la référence d'API. L'écran d'ajout
+  le dit explicitement et, si le serveur refuse ces champs, affiche son
+  vrai message d'erreur Zod (`throwWithServerMessage`) plutôt qu'un
+  « requête invalide » générique.
 - **Budget** (`GET/POST /api/usage/budget`) — schéma entièrement documenté
-  (Zod) dans la référence d'API : `apiKeyId` + au moins une limite parmi
-  jour/semaine/mois, seuil d'alerte optionnel, intervalle de réinitialisation.
-- **Limites de jetons** (`GET/POST/DELETE /api/usage/token-limits`) — schéma
-  documenté : portée `model`/`provider`/`global`, valeur de portée, limite,
-  activable/désactivable ; la lecture enrichit avec `tokensUsed`/`remaining`/
-  `nextResetAt` réels.
+  (Zod) dans la référence d'API : formulaire complet (jour/semaine/mois,
+  seuil d'alerte en %, intervalle de réinitialisation), pas seulement la
+  limite mensuelle.
+- **Limites & quotas** (`GET/POST/DELETE /api/usage/token-limits` +
+  `GET /api/rate-limits`) — **c'est ici que se trouve le vrai quota restant
+  par fournisseur** : un vrai sélecteur de portée (Global/Modèle/Fournisseur,
+  pas une devinette sur le texte saisi comme avant) permet de définir une
+  limite scoped `provider`, et la lecture enrichit chaque limite avec
+  `tokensUsed`/`remaining`/`nextResetAt` réels — affichés avec une barre de
+  progression (rouge sous 15% restant, orange sous 40%). En dessous, le
+  statut de rate-limit du compte (`GET /api/rate-limits`, forme non
+  documentée elle aussi) s'affiche en lecture seule, en brut comme
+  Fournisseurs.
 
 Contrairement aux autres écrans de gestion (Mémoire, MCP), ce panneau
 **modifie** la configuration réelle du serveur connecté (au lieu de
