@@ -1,13 +1,15 @@
 <div align="center">
 
-<img src="docs/brand/omnichat-lockup-horizontal.png" alt="OmniChat" width="420" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/omnichat-lockup-transparent-dark.png" />
+  <img src="docs/brand/omnichat-lockup-transparent-light.png" alt="OmniChat" width="420" />
+</picture>
 
 **Client macOS natif pour [OmniRoute](https://github.com/diegosouzapw/OmniRoute)**
-Chat multi-modèles, génération média, mémoire, MCP, RAG, comparaison et fusion de réponses — dans une interface « atelier d'imprimerie ».
+Chat multi-modèles, génération média, mémoire, MCP, RAG, comparaison et fusion de réponses.
 
 [![Platform](https://img.shields.io/badge/plateforme-macOS%2026%2B-0E0E0E?style=flat-square)](#build--lancement)
 [![Swift](https://img.shields.io/badge/Swift-6-F7F4EE?style=flat-square&labelColor=0E0E0E)](#build--lancement)
-[![SwiftUI](https://img.shields.io/badge/UI-SwiftUI-C9A96E?style=flat-square&labelColor=0E0E0E)](#identité-visuelle)
 [![License](https://img.shields.io/badge/licence-tous%20droits%20réservés-0E0E0E?style=flat-square)](LICENSE)
 
 </div>
@@ -27,12 +29,7 @@ Chat multi-modèles, génération média, mémoire, MCP, RAG, comparaison et fus
 OmniChat est une application macOS native (Swift 6 + SwiftUI) qui exploite
 [OmniRoute](https://github.com/diegosouzapw/OmniRoute), une passerelle IA
 open-source agrégeant plusieurs centaines de fournisseurs de modèles
-derrière une API compatible OpenAI. Plutôt qu'une interface générique de
-chatbot, OmniChat adopte une direction éditoriale distincte — papier,
-encre, serif et filets fins — et s'attache à n'afficher que des données
-réellement confirmées contre un serveur OmniRoute en fonctionnement :
-chaque intégration listée ci-dessous a été vérifiée empiriquement, pas
-supposée depuis la documentation seule.
+derrière une API compatible OpenAI.
 
 ## Fonctionnalités
 
@@ -48,26 +45,13 @@ supposée depuis la documentation seule.
 | **Administration** | Panneau à 8 pages (fournisseurs & clés, santé, agents, garde-fous, réseau, analytique & coûts) — quota restant par fournisseur, visible uniquement si la clé a les droits de gestion |
 | **Bulletin menu bar** | Santé des fournisseurs et dernière réponse routée, sans quitter la barre de menu |
 
-Détail complet, décisions de conception et correctifs confirmés
-empiriquement contre un serveur réel : [docs/DEVLOG.md](docs/DEVLOG.md).
+Détail complet et décisions de conception : [docs/DEVLOG.md](docs/DEVLOG.md).
 Périmètre complet et architecture cible :
 [docs/superpowers/specs/2026-08-17-omnichat-macos-app-design.md](docs/superpowers/specs/2026-08-17-omnichat-macos-app-design.md).
 
 **Pas encore implémenté :** RAG documentaire (import de fichiers), A2A,
 OCR, gestion des combos de routage et de la compression (voir la feuille
 de route dans le spec ci-dessus).
-
-## Identité visuelle
-
-<div align="center">
-<img src="docs/brand/omnichat-banner-dark.png" alt="Bannière OmniChat" width="500" />
-</div>
-
-Palette de marque : **Noir Presse** `#0E0E0E` · **Ivoire Papier** `#F7F4EE` · **Or Mat** `#C9A96E` (accent).
-Serif [Spectral](https://github.com/googlefonts/spectral) (licence SIL Open Font), embarqué dans l'app.
-Détail complet — monogramme, tuiles d'icône, construction de l'`AppIcon.appiconset` :
-[docs/DEVLOG.md § Identité visuelle](docs/DEVLOG.md#identité-visuelle) ·
-tous les fichiers sources : [`docs/brand/`](docs/brand/).
 
 ## Architecture
 
