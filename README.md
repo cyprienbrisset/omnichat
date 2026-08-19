@@ -5,9 +5,15 @@
 **Client macOS natif pour [OmniRoute](https://github.com/diegosouzapw/OmniRoute)**
 Chat multi-modèles, génération média, mémoire, MCP, RAG, comparaison et fusion de réponses.
 
-[![Platform](https://img.shields.io/badge/plateforme-macOS%2026%2B-0E0E0E?style=flat-square)](#build--lancement)
-[![Swift](https://img.shields.io/badge/Swift-6-F7F4EE?style=flat-square&labelColor=0E0E0E)](#build--lancement)
-[![License](https://img.shields.io/badge/licence-tous%20droits%20réservés-0E0E0E?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/plateforme-macOS%2026%2B-0E0E0E?style=flat-square&labelColor=0E0E0E)](#build--lancement)
+[![Swift](https://img.shields.io/badge/Swift-6-C9A96E?style=flat-square&labelColor=0E0E0E)](#build--lancement)
+[![SwiftUI](https://img.shields.io/badge/UI-SwiftUI-F7F4EE?style=flat-square&labelColor=0E0E0E)](#build--lancement)
+[![SwiftData](https://img.shields.io/badge/persistance-SwiftData-C9A96E?style=flat-square&labelColor=0E0E0E)](#architecture)
+[![License](https://img.shields.io/badge/licence-tous%20droits%20réservés-F7F4EE?style=flat-square&labelColor=0E0E0E)](LICENSE)
+
+[![Last commit](https://img.shields.io/github/last-commit/cyprienbrisset/omnichat?style=flat-square&labelColor=0E0E0E&color=C9A96E)](https://github.com/cyprienbrisset/omnichat/commits/main)
+[![Top language](https://img.shields.io/github/languages/top/cyprienbrisset/omnichat?style=flat-square&labelColor=0E0E0E&color=F7F4EE)](https://github.com/cyprienbrisset/omnichat)
+[![Code size](https://img.shields.io/github/languages/code-size/cyprienbrisset/omnichat?style=flat-square&labelColor=0E0E0E&color=C9A96E)](https://github.com/cyprienbrisset/omnichat)
 
 **[Aperçu](#aperçu) · [Fonctionnalités](#fonctionnalités) · [Architecture](#architecture) · [Build & lancement](#build--lancement) · [Configuration](#configuration)**
 
@@ -59,9 +65,13 @@ Détail complet et décisions de conception : [docs/DEVLOG.md](docs/DEVLOG.md).
 Périmètre complet et architecture cible :
 [docs/superpowers/specs/2026-08-17-omnichat-macos-app-design.md](docs/superpowers/specs/2026-08-17-omnichat-macos-app-design.md).
 
-**Pas encore implémenté :** RAG documentaire (import de fichiers), A2A,
-OCR, gestion des combos de routage et de la compression (voir la feuille
-de route dans le spec ci-dessus).
+**Pas encore implémenté :**
+![RAG documentaire](https://img.shields.io/badge/RAG%20documentaire-9B9B93?style=flat-square)
+![A2A](https://img.shields.io/badge/A2A-9B9B93?style=flat-square)
+![OCR](https://img.shields.io/badge/OCR-9B9B93?style=flat-square)
+![Combos de routage](https://img.shields.io/badge/Combos%20de%20routage-9B9B93?style=flat-square)
+![Compression](https://img.shields.io/badge/Compression-9B9B93?style=flat-square)
+— voir la feuille de route dans le spec ci-dessus.
 
 ## Architecture
 
