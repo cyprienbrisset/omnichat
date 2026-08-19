@@ -67,6 +67,36 @@ et un panneau de gestion des combos/routage font partie d'une direction
 future documentée mais non planifiée — ils dépendent de fonctionnalités
 (télémétrie de combo, coûts/latences par requête) pas encore construites.
 
+## Fil de conversation
+
+Le fil reste ancré en bas : au chargement, à chaque nouveau message, et
+pendant le streaming (le contenu du dernier message grandit sur place sans
+changer le nombre de messages, donc un `ScrollViewReader` suit explicitement
+son `content` en plus du nombre de messages). Chaque message (demande ou
+réponse) a un bouton copier discret qui place le texte réel dans le
+presse-papiers — jamais un texte vide : pour un message média ou un simple
+appel d'outil sans texte, il retombe sur le prompt ou le résultat d'outil
+plutôt que de disparaître.
+
+**Correctif rendu markdown :** les réponses n'étaient affichées qu'en texte
+brut (`Text(content)`), donc `### titre`, `---` et `**gras**` s'affichaient
+tels quels au lieu d'être mis en forme. Un parseur de blocs dédié
+(`MarkdownParser`, testé unitairement) découpe désormais titres, règles
+horizontales, listes et blocs de code ; chaque bloc de texte passe par
+`Text(LocalizedStringKey:)`, qui applique le gras/italique/liens inline
+nativement — pas de ré-implémentation d'un parseur inline. La lettrine
+(grande première lettre) du mockup est conservée mais devient consciente du
+markdown : si le paragraphe commence par un caractère spécial (`*`, `` ` ``…)
+plutôt qu'une lettre, elle s'efface pour ne pas casser une paire
+d'emphase.
+
+**Correctif résultat d'outil tronqué :** la carte d'appel d'outil coupait le
+résultat à 4 lignes (`lineLimit(4)`), ce qui coupait le vrai texte au milieu
+d'un mot et se lisait comme un bug de troncature. Le résultat s'affiche
+maintenant en entier en dessous d'un certain seuil, et au-delà propose un
+vrai bouton « Afficher tout / Réduire » — jamais de donnée perdue en
+silence.
+
 ## Génération média
 
 Le composeur de la fenêtre principale bascule entre Texte/Image/Vidéo/

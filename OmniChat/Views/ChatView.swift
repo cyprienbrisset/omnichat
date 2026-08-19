@@ -32,21 +32,32 @@ struct ChatView: View {
                     PersistenceErrorBanner(message: persistenceError)
                 }
 
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 22) {
-                        ForEach(conversation.orderedMessages, id: \.persistentModelID) { message in
-                            MessageEntry(
-                                message: message,
-                                isGenerating: (viewModel?.isStreaming ?? false)
-                                    && message.persistentModelID == conversation.orderedMessages.last?.persistentModelID,
-                                pendingKind: viewModel?.lastAttemptKind
-                            )
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 22) {
+                            ForEach(conversation.orderedMessages, id: \.persistentModelID) { message in
+                                MessageEntry(
+                                    message: message,
+                                    isGenerating: (viewModel?.isStreaming ?? false)
+                                        && message.persistentModelID == conversation.orderedMessages.last?.persistentModelID,
+                                    pendingKind: viewModel?.lastAttemptKind
+                                )
+                                .id(message.persistentModelID)
+                            }
                         }
+                        .padding(24)
                     }
-                    .padding(24)
+                    .background(OmniTheme.paper)
+                    .background { OmniPaperTexture() }
+                    .onAppear { scrollToBottom(proxy: proxy, animated: false) }
+                    .onChange(of: conversation.orderedMessages.count) { _, _ in
+                        scrollToBottom(proxy: proxy, animated: true)
+                    }
+                    .onChange(of: conversation.orderedMessages.last?.content) { _, _ in
+                        guard viewModel?.isStreaming == true else { return }
+                        scrollToBottom(proxy: proxy, animated: false)
+                    }
                 }
-                .background(OmniTheme.paper)
-                .background { OmniPaperTexture() }
 
                 composer
             }
@@ -76,6 +87,19 @@ struct ChatView: View {
                 conversation.defaultModelID = modelID
                 try? context.save()
             }
+        }
+    }
+
+    /// Keeps the thread pinned to its latest message — on load, whenever a
+    /// new message is appended, and, while streaming, as the assistant's
+    /// message grows in place (its `content` mutates without changing the
+    /// message count).
+    private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
+        guard let lastID = conversation.orderedMessages.last?.persistentModelID else { return }
+        if animated {
+            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(lastID, anchor: .bottom) }
+        } else {
+            proxy.scrollTo(lastID, anchor: .bottom)
         }
     }
 

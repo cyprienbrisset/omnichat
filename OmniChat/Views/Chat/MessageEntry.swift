@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Each turn is set in its own register: a request reads as a quoted,
 /// italic aside in the margin; a response reads as flowing serif prose —
@@ -16,27 +17,40 @@ struct MessageEntry: View {
         }
     }
 
-    /// The mockup's initial-letter "lettrine" — the first character set large
-    /// and in the warm accent, the rest of the response as normal serif
-    /// prose. SwiftUI has no CSS-style float, so this doesn't wrap text
-    /// around the tall letter across multiple lines like the mockup does;
-    /// it's a Text-concatenation approximation, not a pixel-exact port.
-    private func dropCapText(_ content: String) -> Text {
-        guard let first = content.first else { return Text(content) }
-        return Text(String(first))
-            .font(OmniTheme.serif(32, weight: .semibold))
-            .foregroundStyle(OmniTheme.warning)
-            + Text(String(content.dropFirst()))
-                .font(OmniTheme.serif(15))
-                .foregroundStyle(OmniTheme.ink)
+    /// What a message's copy button actually copies — the real text a user
+    /// would want on their clipboard, in priority order. `nil` hides the
+    /// button rather than copying nothing.
+    private var copyableText: String? {
+        if !message.content.isEmpty { return message.content }
+        if let mediaItem = message.mediaItem { return mediaItem.prompt }
+        if let toolResult = message.toolResult { return toolResult }
+        return nil
+    }
+
+    private func copyButton(text: String) -> some View {
+        Button {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
+        } label: {
+            Image(systemName: "doc.on.doc")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(OmniTheme.inkSoft)
+        }
+        .buttonStyle(.plain)
+        .help("Copier")
     }
 
     private var requestBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
-            OmniTheme.label("Demande", size: 10, color: OmniTheme.inkSoft)
+            HStack(spacing: 6) {
+                OmniTheme.label("Demande", size: 10, color: OmniTheme.inkSoft)
+                copyButton(text: message.content)
+            }
             Text(message.content)
                 .font(OmniTheme.serif(15).italic())
                 .foregroundStyle(OmniTheme.ink.opacity(0.85))
+                .textSelection(.enabled)
         }
         .padding(.leading, 14)
         .padding(.vertical, 2)
@@ -62,12 +76,10 @@ struct MessageEntry: View {
                 Text(arguments)
                     .font(OmniTheme.mono(9))
                     .foregroundStyle(OmniTheme.inkSoft)
+                    .textSelection(.enabled)
             }
             if let result {
-                Text(result)
-                    .font(OmniTheme.mono(10))
-                    .foregroundStyle(OmniTheme.ink)
-                    .lineLimit(4)
+                ToolResultText(result: result)
             }
         }
         .padding(10)
@@ -84,6 +96,9 @@ struct MessageEntry: View {
                     .fill(message.isIncomplete ? OmniTheme.warning : OmniTheme.success)
                     .frame(width: 6, height: 6)
                 OmniTheme.label("Réponse", size: 10, color: OmniTheme.inkSoft)
+                if let copyableText {
+                    copyButton(text: copyableText)
+                }
             }
             if let toolName = message.toolName {
                 toolCallCard(name: toolName, arguments: message.toolArguments, result: message.toolResult)
@@ -102,13 +117,41 @@ struct MessageEntry: View {
                         .foregroundStyle(OmniTheme.ink)
                 }
             } else {
-                dropCapText(message.content)
-                    .lineSpacing(5)
+                MarkdownContentView(blocks: MarkdownParser.parse(message.content), appliesDropCap: true)
+                    .textSelection(.enabled)
             }
             if let telemetrySummary = message.telemetrySummary {
                 Text(telemetrySummary)
                     .font(OmniTheme.mono(9))
                     .foregroundStyle(OmniTheme.inkSoft)
+            }
+        }
+    }
+}
+
+/// A tool result can be arbitrarily long (a full search passage, raw JSON…).
+/// Collapsing it with a hard `lineLimit` silently drops real data behind an
+/// ellipsis, which reads as a bug rather than a design choice. This instead
+/// collapses only past a real length threshold, with an explicit toggle that
+/// always has access to the full, untruncated text.
+private struct ToolResultText: View {
+    let result: String
+    @State private var isExpanded = false
+
+    private static let collapseThreshold = 320
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(result)
+                .font(OmniTheme.mono(10))
+                .foregroundStyle(OmniTheme.ink)
+                .textSelection(.enabled)
+                .lineLimit(isExpanded || result.count <= Self.collapseThreshold ? nil : 4)
+            if result.count > Self.collapseThreshold {
+                Button(isExpanded ? "Réduire" : "Afficher tout") {
+                    isExpanded.toggle()
+                }
+                .buttonStyle(.omniLink)
             }
         }
     }
