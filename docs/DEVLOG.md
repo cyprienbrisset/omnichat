@@ -1,0 +1,470 @@
+# Journal de développement
+
+Ce document conserve, fonctionnalité par fonctionnalité, le détail des
+décisions de conception et des correctifs confirmés empiriquement contre
+une instance OmniRoute réelle — le README principal reste volontairement
+concis, ce journal est la version longue pour qui veut comprendre le
+*pourquoi* d'un comportement précis.
+
+## Fil de conversation
+
+Le fil reste ancré en bas : au chargement, à chaque nouveau message, et
+pendant le streaming (le contenu du dernier message grandit sur place sans
+changer le nombre de messages, donc un `ScrollViewReader` suit explicitement
+son `content` en plus du nombre de messages). Chaque message (demande ou
+réponse) a un bouton copier discret qui place le texte réel dans le
+presse-papiers — jamais un texte vide : pour un message média ou un simple
+appel d'outil sans texte, il retombe sur le prompt ou le résultat d'outil
+plutôt que de disparaître.
+
+**Correctif rendu markdown :** les réponses n'étaient affichées qu'en texte
+brut (`Text(content)`), donc `### titre`, `---` et `**gras**` s'affichaient
+tels quels au lieu d'être mis en forme. Un parseur de blocs dédié
+(`MarkdownParser`, testé unitairement) découpe désormais titres, règles
+horizontales, listes et blocs de code ; chaque bloc de texte passe par
+`Text(LocalizedStringKey:)`, qui applique le gras/italique/liens inline
+nativement — pas de ré-implémentation d'un parseur inline. La lettrine
+(grande première lettre) du mockup est conservée mais devient consciente du
+markdown : si le paragraphe commence par un caractère spécial (`*`, `` ` ``…)
+plutôt qu'une lettre, elle s'efface pour ne pas casser une paire
+d'emphase.
+
+**Correctif résultat d'outil tronqué :** la carte d'appel d'outil coupait le
+résultat à 4 lignes (`lineLimit(4)`), ce qui coupait le vrai texte au milieu
+d'un mot et se lisait comme un bug de troncature. Le résultat s'affiche
+maintenant en entier en dessous d'un certain seuil, et au-delà propose un
+vrai bouton « Afficher tout / Réduire » — jamais de donnée perdue en
+silence.
+
+**Correctif indicateur de génération après changement de conversation :**
+`ChatView` recrée son `@State` (dont le `ChatViewModel`) à chaque
+changement de conversation — y compris en revenant sur celle qu'on vient
+de quitter — via `.task(id:)`. Une génération média lancée puis laissée en
+arrière-plan pendant qu'on change de conversation continue réellement côté
+réseau (elle finit par écrire le bon `MediaItem`), mais l'ancien
+`ChatViewModel` qui suivait son `isStreaming`/`lastAttemptKind` était
+remplacé par une instance neuve en revenant sur la conversation — l'app
+affichait alors le mauvais indicateur (l'animation « Rédaction en cours… »
+générique au lieu du squelette du bon type de média, voire rien) le temps
+que la génération se termine. `AppEnvironment` garde désormais un
+`ChatViewModel` par (conversation, profil actif) et le réutilise plutôt
+que d'en recréer un à chaque passage — la génération en cours reste
+suivie par la même instance, peu importe la navigation entre-temps.
+
+## Génération média
+
+Le composeur de la fenêtre principale bascule entre Texte/Image/Vidéo/
+Musique/Voix via une rangée d'onglets mono trackés (le substitut « atelier
+d'imprimerie » du sélecteur segmenté classique). Chaque résultat s'affiche
+inline dans la conversation (image, lecteur vidéo, lecteur audio pour
+musique/voix) et rejoint la Galerie (icône dédiée dans le rail), filtrable
+par type. Les fichiers sont enregistrés sous
+`~/Library/Application Support/OmniChat/Media/` — jamais dans le bundle de
+l'app, jamais dans un chemin synchronisé iCloud. Ces quatre appels
+(`/v1/images/generations`, `/v1/videos/generations`,
+`/v1/music/generations`, `/v1/audio/speech`) sont synchrones côté OmniRoute
+(pas de file d'attente/polling), vérifié directement dans le code source
+de l'API avant implémentation.
+
+**Correctif confirmé empiriquement :** ces quatre endpoints rejettent
+l'alias de routage `"auto"` (valide sur `/v1/chat/completions` mais pas
+ici — `"Invalid image model: auto. Use format: provider/model"`, même
+schéma pour vidéo/musique/voix). OmniChat résout désormais un vrai modèle
+avant chaque génération : `GET /v1/images|videos|music/generations`
+renvoie le catalogue réel par type (comme `GET /v1/embeddings`) ; pour la
+voix, qui n'a pas de catalogue dédié (`GET /v1/audio/speech` → `405` en
+direct), les modèles TTS sont filtrés depuis `/v1/models` par
+`type:"audio", subtype:"speech"` (à distinguer de `subtype:"transcription"`,
+inutilisable pour la génération). Si un serveur n'a aucun modèle configuré
+pour un type donné (ex. musique), l'app le dit clairement plutôt que
+d'envoyer une requête vouée à échouer.
+
+Pendant la génération, un squelette animé (au format réel de la sortie
+attendue — image/vidéo/audio) remplace la simple icône qui clignotait
+auparavant.
+
+**Autre correctif confirmé empiriquement :** un serveur peut lister un
+modèle dans son propre catalogue (`GET /v1/images/generations` par
+exemple) dont la route de génération renvoie quand même un vrai `404`
+(constaté en direct sur une entrée Fireworks précise) — un problème
+d'enregistrement côté fournisseur, pas quelque chose qu'un simple « prendre
+le premier de la liste » peut masquer. Constaté aussi : ce n'est pas une
+entrée isolée — sur un serveur réel, tout un bloc de 5 entrées Fireworks
+consécutives échoue de la même façon, suivi d'une entrée Gemini qui échoue
+aussi (pour une raison amont différente). OmniChat essaie donc jusqu'à 20
+modèles candidats du catalogue dans l'ordre, et ne passe au suivant que
+sur ce `404` précis, ainsi qu'un `401`/`403` — toute autre erreur (quota,
+budget, politique de contenu) est réelle et remonte immédiatement, sans
+nouvelle tentative inutile qui la masquerait.
+
+**Agrandir/lire et télécharger un média généré :** chaque média (fil de
+conversation ou Galerie) affiche désormais un chip discret en coin avec
+deux actions réelles — « Agrandir » ouvre `MediaDetailView` (le même
+fichier réel en plus grand : image redimensionnée, `VideoPlayer` pour
+vidéo/musique/voix), « Télécharger » ouvre un vrai panneau d'enregistrement
+macOS (`NSSavePanel`) pour copier le fichier déjà téléchargé localement
+(`~/Library/Application Support/OmniChat/Media/`) vers l'emplacement de
+son choix — ce n'est pas un second téléchargement réseau, juste une copie
+locale vers un endroit que l'utilisateur contrôle. Une image est en plus
+cliquable n'importe où sur sa surface pour l'agrandir (elle n'a aucun
+contrôle natif avec lequel un geste de tap pourrait entrer en conflit,
+contrairement à `VideoPlayer` qui garde ses propres contrôles de lecture
+intacts). Le chip ne s'affiche pas si le fichier réel est introuvable —
+jamais de bouton menant à une action qui échouerait silencieusement.
+
+**Correctif d'un vrai bug de perte de média, confirmé en inspectant
+directement le store SwiftData réel d'un utilisateur :** deux générations
+d'image réussies dans la même conversation avaient bien écrit deux fichiers
+réels sur disque, mais une seule ligne `MediaItem` existait en base — les
+deux messages assistant pointaient vers la même ligne (celle de la
+deuxième génération), donc le premier message affichait la mauvaise image
+et le premier fichier devenait invisible partout, y compris dans la
+Galerie. Root cause : `Message.mediaItem` et `MediaItem.conversation`
+n'avaient jamais de relation SwiftData explicitement déclarée avec
+inverse (`@Relationship(inverse:)`), contrairement à `messages`/
+`searchPassages` sur `Conversation` — une relation to-one non appariée des
+deux côtés est une source connue de corruption lors des migrations de
+schéma automatiques de SwiftData (et cette app évolue vite : chaque
+nouvelle fonctionnalité ajoutant un modèle déclenche une migration sur le
+store existant). Les trois relations sont maintenant explicitement
+déclarées avec un vrai inverse et une règle de suppression en cascade
+(supprimer un message ou une conversation supprime proprement son
+`MediaItem`, plutôt que de le laisser orphelin). Un fichier déjà perdu
+avant ce correctif reste malheureusement introuvable dans l'app (sa ligne
+a été écrasée), mais le fichier brut lui-même reste sur disque dans
+`~/Library/Application Support/OmniChat/Media/` si besoin de le retrouver
+manuellement.
+
+**Correctif confirmé via le journal de diagnostic réel d'un utilisateur**
+(`~/Library/Application Support/OmniChat/diagnostics.json`) : la
+génération échouait malgré des fournisseurs bien configurés et un quota
+actif, parce que le retry ne couvrait que le `404` — pas le `401`/`403`.
+Si le tout premier candidat du catalogue appartient à un fournisseur dont
+la clé est invalide ou n'a pas les droits pour ce type de média
+spécifiquement (même quand d'autres fournisseurs, plus loin dans le
+catalogue, sont correctement configurés), l'app abandonnait immédiatement
+au lieu d'essayer les candidats suivants. Même logique que la résolution
+de modèle d'embedding (RAG) : un candidat listé mais cassé (`404` ou
+`401`/`403`) est ignoré, une vraie erreur d'un autre type surface
+immédiatement.
+
+Le composeur ne propose désormais un mode de génération (Image/Vidéo/
+Musique/Voix) que si le serveur a réellement au moins un modèle pour ce
+type — plus jamais de bouton menant systématiquement à une erreur
+« aucun modèle disponible ».
+
+Enfin, le casier ⌘K (sélection de modèle pour le chat et la comparaison)
+filtre désormais `/v1/models` pour ne garder que les modèles de chat et
+les combos : ce catalogue mélange en réalité chat, embeddings, images,
+vidéo, audio, rerank et modération (confirmé en direct — `/v1/models`
+« Returns all chat, embedding, and image models + combos »), et choisir
+par erreur un modèle non-chat y échouait avec un vrai 400/404 côté serveur
+(`"is an image-generation model and cannot be used on /v1/chat/completions"`).
+Le casier propose aussi désormais une entrée « auto » fixe en tête de
+liste (le routage automatique réel, mais qui n'apparaît jamais dans
+`/v1/models` lui-même) — sans elle, une conversation dont le modèle avait
+été changé ne pouvait plus jamais revenir au routage automatique.
+
+## Transcription audio
+
+Bouton micro dans le composeur (visible uniquement si le serveur a au
+moins un modèle de transcription réel — même principe que les modes de
+génération média : jamais un bouton menant systématiquement à un échec).
+Ouvre un vrai panneau de sélection de fichier, envoie l'audio à
+`POST /v1/audio/transcriptions` (`multipart/form-data`, schéma entièrement
+documenté avec un exemple JSON réel — contrairement à la plupart des
+endpoints de gestion traités en brut ailleurs dans l'app) et insère le
+texte transcrit **dans le brouillon**, jamais envoyé directement : c'est à
+l'utilisateur de relire/corriger avant que ça devienne un vrai message.
+Les modèles de transcription sont filtrés depuis `/v1/models` par
+`type:"audio", subtype:"transcription"` (symétrique au filtre déjà utilisé
+pour la synthèse vocale, `subtype:"speech"`). Même résilience que la
+génération média : plusieurs candidats réels essayés dans l'ordre, un
+candidat listé mais cassé (`404`/`401`) est ignoré, toute autre erreur
+remonte immédiatement.
+
+## Gestion des conversations
+
+Trois vues commutables depuis des icônes dédiées du rail (inspiré de
+ChatGPT) : Conversations, Archivées, Corbeille. Un clic droit sur une
+conversation permet de la renommer, l'archiver/désarchiver, ou la
+supprimer — la suppression la déplace en Corbeille plutôt que de l'effacer
+immédiatement ; elle y reste 30 jours (purgée automatiquement ensuite,
+même logique que `DiagnosticLogger`) avant suppression définitive, avec
+restauration ou suppression immédiate possibles entre-temps.
+
+## Mémoire (API de gestion)
+
+Icône dédiée du rail (`brain`) ouvrant un navigateur réel des souvenirs
+stockés côté serveur (`GET/DELETE /api/memory`), accessible uniquement
+avec une clé API disposant des droits de gestion — la même clé que celle
+utilisée pour le chat, jamais un second identifiant : `hasManagementAccess()`
+sonde silencieusement `GET /api/memory` au lancement et adapte l'interface
+en conséquence. Si la clé n'a pas ces droits, la vue l'indique explicitement
+plutôt que d'afficher une liste vide trompeuse. La forme exacte de la
+réponse `/api/memory` n'étant pas documentée avec certitude, le parsing
+essaie plusieurs formes plausibles (tableau nu, `{data:[...]}`,
+`{memories:[...]}`) avant d'échouer proprement.
+
+L'indicateur de santé (`/api/monitoring/health`) et le navigateur MCP ont
+été vérifiés contre une instance OmniRoute réelle et corrigés en
+conséquence : les compteurs de fournisseurs vivent sous `providerSummary`
+dans une réponse de santé processus beaucoup plus large que ce que la
+référence d'API laissait supposer, et les erreurs `.unknown` affichent
+maintenant le vrai message de diagnostic plutôt qu'un texte générique —
+sinon des messages comme celui du blocage MCP ci-dessous n'auraient jamais
+été visibles.
+
+## Serveur MCP (API de gestion)
+
+Icône dédiée du rail ouvrant un navigateur du serveur MCP embarqué
+d'OmniRoute (`GET /api/mcp/status`, `/api/mcp/tools`, `/api/mcp/audit/stats`,
+`/api/mcp/audit`), même garde d'accès et même clé que la Mémoire. La forme
+JSON exacte du statut, des stats d'audit et des entrées d'audit n'est
+documentée qu'en prose dans la référence d'API (pas de noms de champs) —
+plutôt que de deviner des clés et risquer d'afficher une donnée réelle sous
+une mauvaise étiquette, ces réponses sont affichées telles quelles (liste
+brute clé/valeur triée). Seule la liste des outils (`name`, `description`,
+`scopes`, `phase`, `auditLevel`, `sourceEndpoints`) a une forme documentée
+et un rendu dédié.
+
+**Correctif :** le parsing des listes (outils, journal d'audit) essayait
+seulement 3 formes d'enveloppe (`data`/`tools`/`entries`/`logs`) et
+échouait sur toute autre forme avec une erreur « unrecognized shape » peu
+utile. Il essaie maintenant aussi `result`/`items`, et en dernier recours,
+cherche n'importe quel tableau présent au premier niveau de la réponse —
+quel que soit son nom de clé — avant d'abandonner. Toujours honnête : si
+vraiment aucun tableau n'est trouvé, l'erreur reste claire plutôt que
+d'inventer une liste vide.
+
+Le journal d'audit (« Activité récente ») montre les appels d'outils MCP
+*réellement* effectués contre ce serveur, par n'importe quel client. Ce
+n'est **pas** le mécanisme derrière les cartes d'appel d'outil affichées
+dans le fil de conversation (voir « Appels d'outils dans le fil »
+ci-dessous) — ce journal reste utile même si OmniRoute lui-même est
+inaccessible pour les appels de la passerelle.
+
+**Confirmé empiriquement contre une instance OmniRoute réelle (3.8.49) :**
+tous les `/api/mcp/*` renvoient `403 {"error":{"code":"LOCAL_ONLY",...}}`
+dès qu'on les appelle depuis ailleurs que la machine qui héberge OmniRoute
+elle-même — quels que soient les droits de la clé. Pour une instance
+auto-hébergée distante (le cas d'usage principal de cette app), ce
+navigateur MCP affichera donc toujours cette erreur, jamais une vraie
+donnée. L'app détecte ce code précis et affiche le vrai message serveur
+plutôt qu'un « Clé API invalide » trompeur (qui serait la lecture par
+défaut d'un 403 générique).
+
+## Appels d'outils dans le fil
+
+Contrairement à ce que la découverte ci-dessus laissait présager, OmniChat
+implémente désormais un vrai appel d'outils agentique — confirmé
+empiriquement contre l'instance OmniRoute réelle : `POST
+/v1/chat/completions` accepte bien un paramètre `tools` de type OpenAI, et
+diffuse de vrais fragments `tool_calls` (`id`/`name` sur le premier
+fragment, `arguments` réparti en morceaux JSON à concaténer, jusqu'à
+`finish_reason: "tool_calls"`) — capturé directement depuis le serveur, pas
+deviné. OmniChat **n'appelle jamais le serveur MCP d'OmniRoute** pour
+exécuter ces outils (rappel : `/api/mcp/sse` et `/api/mcp/stream`, les
+transports MCP réels, sont eux aussi `LOCAL_ONLY` et donc inaccessibles
+pour une instance distante) — les outils proposés au modèle sont
+entièrement définis et exécutés par OmniChat lui-même (`LocalTool` dans
+`OmniChat/Support/LocalTools.swift`). Un seul outil pour l'instant :
+`search_local_history`, qui appelle la recherche locale déjà construite
+(RAG, section suivante). Chaque appel s'affiche dans le fil comme une
+carte réelle (nom, arguments, résultat) — jamais fabriquée : si l'outil
+échoue, le message d'erreur réel s'affiche. La boucle est plafonnée à 3
+aller-retours par message pour éviter qu'un modèle bavard ne boucle
+indéfiniment.
+
+## Recherche locale (RAG sur l'historique)
+
+Icône dédiée du rail ouvrant un navigateur de recherche locale sur les
+conversations. Contrairement à Mémoire et MCP, aucune clé de gestion n'est
+requise : l'indexation et la recherche passent par `POST /v1/embeddings` et
+`GET /v1/embeddings`, la même clé que le chat. L'indexation d'une
+conversation (« Indexer ») est **toujours manuelle** — jamais déclenchée en
+arrière-plan — parce que chaque appel a un coût réel et envoie le contenu
+des messages à un fournisseur d'embeddings tiers via OmniRoute. Le score
+combine une similarité cosinus réelle (vecteurs) et un recouvrement de
+mots-clés simple ; ce n'est pas du FTS5 SQLite malgré ce que suggère le
+mockup, donc l'interface ne prétend pas l'être. Les résultats cochés
+peuvent être joints comme contexte au prochain message envoyé (message
+`system` transitoire, jamais persisté comme un vrai message de la
+conversation). L'import de documents externes n'est pas implémenté — seul
+l'historique des conversations déjà dans OmniChat est indexable.
+
+**Correctif confirmé empiriquement :** le bouton « Indexer » (et la
+recherche, et l'outil `search_local_history`) ne faisaient confiance qu'au
+tout premier modèle d'embedding du catalogue — le même problème que pour
+la génération média (un modèle listé peut appartenir à un fournisseur non
+configuré). La résolution du modèle d'embedding essaie maintenant
+plusieurs candidats réels avec un vrai appel de test, jusqu'à en trouver un
+qui fonctionne, et réutilise le même pour l'indexation et la recherche
+d'une même session (des vecteurs de modèles différents ne sont jamais
+comparables).
+
+## Comparaison multi-modèles
+
+Icône dédiée du rail. Un seul prompt envoyé à N modèles ajoutés via le
+même casier ⌘K que le reste de l'app ; chaque colonne diffuse
+indépendamment sa propre réponse réelle (`streamChatCompletion`) et
+affiche ses propres jetons/coût/latence une fois reçus. Volontairement
+éphémère : rien n'est persisté comme conversation — changer d'écran perd
+les colonnes. Aucune notion de « combo » ou de juge ici, contrairement au
+mode Fusion (section suivante) : c'est une comparaison brute, pas une
+synthèse.
+
+## Fusion
+
+Icône dédiée du rail (à côté de Comparaison). Le même prompt part vers N
+modèles sources (ajoutés via le casier ⌘K, comme Comparaison), puis un
+modèle **juge** lit toutes les réponses réellement reçues et produit une
+synthèse unique — un vrai second appel `/v1/chat/completions`, pas une
+fusion côté client des textes. Il n'existe aucun endpoint OmniRoute dédié
+à la fusion : contrairement aux combos de routage (fallback automatique
+entre fournisseurs), c'est entièrement orchestré par OmniChat lui-même.
+
+Le juge peut être choisi explicitement (casier ⌘K, avec la ligne « auto »
+déjà utilisée pour le chat) ou laissé sur `"auto"`. Contrairement à la
+génération média, `/v1/chat/completions` accepte réellement `"auto"`
+côté serveur (confirmé en direct) — quand le juge est en auto, le vrai
+modèle qui a répondu est lu depuis la télémétrie de routage de la réponse
+(`X-OmniRoute-Decision`) et affiché à côté de la réponse fusionnée
+(`auto → openai/gpt-4o`, par exemple), jamais juste « auto ».
+
+Un modèle source qui échoue n'annule pas la fusion : seules les réponses
+réellement reçues nourrissent le juge ; le round échoue explicitement
+uniquement si **aucune** source n'a répondu (rien à fusionner). Les N
+réponses sources restent consultables, repliées sous la réponse fusionnée
+(bouton « Voir les réponses sources ») — la synthèse reste vérifiable
+contre ce qui l'a réellement nourrie.
+
+**Persistance délibérément séparée des conversations normales** (demande
+explicite) : les sessions de Fusion vivent dans leur propre store SwiftData
+(`FusionSession`/`FusionRound`/`FusionSourceResponse`), avec leur propre
+liste dans l'écran Fusion — jamais mélangées à la liste de conversations
+normale, puisqu'une réponse fusionnée n'est pas la réponse d'un seul
+modèle. Seules les réponses sources qui ont réellement répondu sont
+enregistrées dans un round persisté (un échec de source ne produit pas de
+« réponse source » fictive).
+
+## Administration (paramétrage OmniRoute via l'API de gestion)
+
+Nouvelle icône du rail (curseurs), visible **uniquement** si la clé active a
+les droits de gestion (`managementAccessState == .available`, même garde
+que Mémoire/MCP) — une clé sans ces droits ne voit pas l'entrée du tout,
+plutôt que de la voir échouer avec une erreur d'auth. Contrairement aux
+autres écrans de gestion (Mémoire, MCP), ce panneau **modifie** la
+configuration réelle du serveur connecté (au lieu de seulement la lire) —
+d'où la garde d'accès stricte et le choix de toujours remonter le message
+d'erreur serveur réel plutôt qu'un message générique, surtout là où le
+corps de requête est une hypothèse plutôt qu'un fait documenté.
+
+Huit pages en sidebar (deux groupes, « Passerelle » et « Contrôle »), avec
+du contenu réel là où une forme de réponse existe (documentée ou
+suffisamment sûre à afficher brute), et un état honnête « Bientôt » là où
+ce n'est pas encore le cas :
+
+- **Serveur & santé** — réutilise `/api/monitoring/health` déjà chargé au
+  lancement (catalogue/configurés/actifs/surveillés), avec un bouton
+  Actualiser réel.
+- **Fournisseurs & clés** — refonte en vrai tableau filtrable : chips de
+  filtre construites dynamiquement à partir des vraies valeurs
+  `authType`/`provider` rencontrées (jamais les catégories fixes du
+  mockup — un « gratuit » ou un « local » n'apparaît que si le serveur le
+  renvoie réellement), plus un filtre « en panne » dérivé de signaux réels
+  (`isActive`, échec de test, verrou de rate-limit actif). Carte par
+  fournisseur : pastille de statut, badges type/auth/plan/priorité/
+  rate-limit, expiration relative du token, secret/santé de clé
+  (`providerSpecificData.apiKeyHealth` quand présent) — le reste des champs
+  bruts se déplie en grille à deux colonnes. Bouton « Tout tester » en plus
+  du test par ligne. La création reste une hypothèse de corps
+  (`{name, provider, apiKey}`, forme réelle non documentée) qui affiche le
+  vrai message d'erreur Zod du serveur si elle est refusée.
+- **Routage & combos**, **Compression** — pages « Bientôt » honnêtes :
+  `/api/combos*` et `/api/compression/preview` n'ont de schéma documenté
+  qu'en prose ; construire ces écrans sur une hypothèse de champs risquerait
+  d'afficher une donnée réelle sous une mauvaise étiquette. Nécessitent une
+  découverte API en direct contre une vraie clé de gestion.
+- **Garde-fous** — `GET /api/policies` (« Manage routing policies »), en
+  snapshot brut honnête comme Fournisseurs (forme non documentée au-delà
+  d'une ligne de description).
+- **Agents & outils** — `GET /api/acp/agents`, la seule page avec un
+  **schéma de réponse entièrement documenté** (exemple JSON réel dans la
+  référence d'API) : agents CLI détectés (intégrés ou personnalisés), avec
+  statut d'installation, version, binaire, protocole. Aucun champ deviné
+  ici.
+- **Réseau & confidentialité** — `GET /api/settings/proxy` +
+  `GET /api/settings/ip-filter`, deux ressources à forme non documentée,
+  affichées en snapshot brut.
+- **Analytique & coûts** — regroupe Budget (schéma Zod entièrement
+  documenté : jour/semaine/mois, seuil d'alerte, intervalle de
+  réinitialisation), Limites & quotas (**c'est ici que se trouve le vrai
+  quota restant par fournisseur** : un vrai sélecteur de portée Global/
+  Modèle/Fournisseur — remplace l'ancienne devinette sur le texte saisi qui
+  ne pouvait jamais viser « fournisseur » — avec barre de progression
+  colorée une fois `tokensUsed`/`remaining` renvoyés, plus le statut de
+  rate-limit par compte), et une section Latence & succès
+  (`GET /api/usage/model-latency-stats`, agrégats non documentés au niveau
+  des champs, affichés en brut).
+
+## Bulletin de la menu bar
+
+Ouvre-le en cliquant l'icône de la menu bar. Reprend le mockup 2f
+(bulletin passerelle : quota, santé, dernière bascule) avec une décision
+de scope explicite : pas de champ inventé contre des endpoints non
+documentés (`/api/usage/model-latency-stats`, `/api/resilience/
+model-cooldowns` — testés en direct, 401 sans forme de champs révélée,
+et cet environnement n'a pas de vraie clé de gestion pour aller plus
+loin). Le bulletin affiche donc uniquement des données déjà sûres :
+
+- **Fournisseurs actifs** — `appEnvironment.monitoringHealth` déjà chargé
+  au lancement (`actifs / catalogue`, barre de progression réelle) — pas
+  de second appel réseau pour ouvrir le popover.
+- **Dernière réponse routée** — pas tirée d'un endpoint d'analytique
+  serveur, mais de la télémétrie qu'OmniChat capture déjà lui-même sur
+  chaque message (`routingStrategy`/`routingProvider`/`routingLatencyMs`,
+  lus depuis les en-têtes `X-OmniRoute-*`) : un scan borné (20 derniers
+  messages, toutes conversations) trouve le dernier avec une vraie
+  télémétrie et affiche « stratégie → fournisseur · latence », en relatif
+  dans le temps. Absent plutôt que fabriqué si rien n'a encore de
+  télémétrie.
+
+Un futur passage pourra ajouter les vraies statistiques serveur (sains/
+succès/P50, dernière bascule détectée côté OmniRoute) si quelqu'un colle
+une réponse authentifiée réelle de ces deux endpoints — même discipline
+que le reste de l'app : jamais deviner un nom de champ.
+
+## Identité visuelle
+
+Le monogramme « OC » et la charte de marque (Noir Presse `#0E0E0E`,
+Ivoire Papier `#F7F4EE`, Or Mat en accent `#C9A96E`) vivent dans
+[`docs/brand/`](brand/) : lockup horizontal, bannière sombre, tuiles
+d'icône claire/sombre, plus les deux sources réellement utilisées dans le
+build — `omnichat-appicon-flat-1024.png` (carré plat sans ombre ni coin
+arrondi pré-cuits, recoloré en duotone Noir Presse/Ivoire Papier à partir
+du monogramme du calque source, conforme aux consignes Apple pour
+`AppIcon.appiconset` — c'est macOS qui applique lui-même l'arrondi et
+l'ombre) et `omnichat-brand-mark-template.png` (même monogramme en
+« template », alpha seul, pour être teinté à la volée dans l'UI). Le
+monogramme remplace le repère texte `"O"` dans le rail, le bulletin de la
+menu bar, l'écran de connexion et l'état vide de la liste de
+conversations.
+
+Le thème (`OmniChat/Support/Theme.swift`, `OmniTheme`) dérive toute sa
+palette de trois constantes de marque privées plutôt que de valeurs
+codées en dur éparpillées. Le serif est
+[Spectral](https://github.com/googlefonts/spectral) (licence SIL Open
+Font, fichiers statiques embarqués dans `OmniChat/Resources/Fonts/` et
+enregistrés via `ATSApplicationFontsPath`) — Romie et Canela, les polices
+d'affichage utilisées pour le wordmark lui-même dans `docs/brand/`, sont
+des polices commerciales et ne sont pas embarquées.
+
+Ce traitement est appliqué à la fenêtre principale (conversation +
+sidebar), aux réglages/premier lancement et au menu bar. Le registre des
+conversations (colonne du milieu, 300pt) ne s'affiche que face à une
+conversation : Galerie, Mémoire, MCP, Recherche locale, Comparaison et
+Administration gèrent chacun leur propre contenu de bout en bout et n'ont
+rien à voir avec le choix d'une conversation — ils prennent donc toute la
+largeur restante plutôt que de partager l'écran avec une liste sans
+rapport.
