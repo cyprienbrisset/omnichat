@@ -1,11 +1,8 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/omnichat-lockup-transparent-dark.png" />
-  <img src="docs/brand/omnichat-lockup-transparent-light.png" alt="OmniChat" width="420" />
-</picture>
+<img src="docs/brand/omnichat-banner-dark.png" alt="OmniChat" width="420" />
 
-**Client macOS natif pour [OmniRoute](https://github.com/diegosouzapw/OmniRoute)**
+**Client macOS natif pour [OmniRoute](https://github.com/diegosouzapw/OmniRoute)
 Chat multi-modèles, génération média, mémoire, MCP, RAG, comparaison et fusion de réponses.
 
 [![Platform](https://img.shields.io/badge/plateforme-macOS%2026%2B-0E0E0E?style=flat-square)](#build--lancement)
@@ -34,7 +31,7 @@ derrière une API compatible OpenAI.
 ## Fonctionnalités
 
 | Domaine | Ce qui est fait |
-|---|---|
+| --- | --- |
 | **Chat** | Streaming multi-modèles, routage automatique (`auto`) ou modèle choisi par conversation (⌘K), trace de routage et coût réels par réponse |
 | **Génération média** | Images, vidéo, musique, synthèse et transcription vocale — rendu inline + Galerie dédiée |
 | **Fil de conversation** | Markdown natif, copie en un clic, appels d'outils agentiques (`tool_calls` réels), auto-scroll pendant le streaming |
