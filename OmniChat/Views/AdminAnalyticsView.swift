@@ -310,7 +310,13 @@ private struct QuotasSectionView: View {
                 rateLimitStatusSection
             }
         }
-        .task { await loadRateLimitStatus() }
+        .task {
+            if apiKeyIDInput.isEmpty, let remembered = appEnvironment.quotaAPIKeyID {
+                apiKeyIDInput = remembered
+                await load()
+            }
+            await loadRateLimitStatus()
+        }
     }
 
     private var form: some View {
@@ -483,6 +489,9 @@ private struct QuotasSectionView: View {
         do {
             limits = try await client.listTokenLimits(apiKeyId: apiKeyIDInput)
             loadState = .loaded
+            // Only remembered on a confirmed-working load, never on a typo.
+            appEnvironment.rememberQuotaAPIKeyID(apiKeyIDInput)
+            await appEnvironment.refreshGlobalQuota()
         } catch let error as OmniRouteError {
             loadState = .failed(error.userMessage)
         } catch {

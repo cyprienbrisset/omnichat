@@ -421,6 +421,14 @@ loin). Le bulletin affiche donc uniquement des données déjà sûres :
 - **Fournisseurs actifs** — `appEnvironment.monitoringHealth` déjà chargé
   au lancement (`actifs / catalogue`, barre de progression réelle) — pas
   de second appel réseau pour ouvrir le popover.
+- **Quota global** — `GET /api/usage/token-limits` (l'entrée `scopeType
+  == "global"`), un vrai `tokensUsed`/`remaining`/`tokenLimit`. OmniRoute
+  n'a pas d'endpoint « whoami » : l'app ne peut pas résoudre elle-même
+  quel `apiKeyId` correspond à la clé active, donc ce champ reste vide
+  tant que l'utilisateur ne l'a pas saisi une fois dans Administration ›
+  Analytique › Limites & quotas — une fois chargé avec succès là-bas,
+  `AppEnvironment.rememberQuotaAPIKeyID` le persiste (par profil) et le
+  bulletin le réutilise directement, sans jamais redemander.
 - **Dernière réponse routée** — pas tirée d'un endpoint d'analytique
   serveur, mais de la télémétrie qu'OmniChat capture déjà lui-même sur
   chaque message (`routingStrategy`/`routingProvider`/`routingLatencyMs`,

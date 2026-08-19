@@ -29,6 +29,15 @@ final class AppEnvironment {
     private(set) var managementAccessState: ManagementAccessState = .unknown
     private(set) var catalogSummary: CatalogSummary?
     private(set) var monitoringHealth: MonitoringHealth?
+    /// The real global token quota (`GET /api/usage/token-limits`, the
+    /// `scopeType == "global"` entry) for whichever `apiKeyId` the user has
+    /// entered in Administration › Analytique › Limites & quotas — OmniRoute
+    /// has no "whoami" endpoint, so this app has no way to resolve its own
+    /// server-side apiKeyId automatically. Persisted per profile so it's
+    /// only ever typed once. `nil` until an apiKeyId is on file, the key
+    /// lacks management scope, or that key simply has no global-scope limit
+    /// configured — never a fabricated bar.
+    private(set) var globalQuota: TokenLimitEntry?
     /// Media kinds this server actually has at least one real model for —
     /// starts empty (nothing shown) rather than assuming availability, so
     /// the composer never offers a generation mode that's guaranteed to
@@ -217,5 +226,34 @@ final class AppEnvironment {
         let client = OmniRouteClient(profile: activeProfile, credentialStore: credentialStore)
         let models = try? await client.listTranscriptionModels()
         canTranscribeAudio = !(models ?? []).isEmpty
+    }
+
+    private static func quotaAPIKeyIDDefaultsKey(profileID: UUID) -> String {
+        "omnichat.quotaAPIKeyID.\(profileID.uuidString)"
+    }
+
+    /// The apiKeyId the user has entered for global quota lookups, if any —
+    /// see `globalQuota`'s doc comment for why this can't be resolved
+    /// automatically.
+    var quotaAPIKeyID: String? {
+        UserDefaults.standard.string(forKey: Self.quotaAPIKeyIDDefaultsKey(profileID: activeProfile.id))
+    }
+
+    /// Called once the user successfully loads token limits for an apiKeyId
+    /// in Administration, so the menu bar bulletin can reuse it without
+    /// asking again.
+    func rememberQuotaAPIKeyID(_ apiKeyID: String) {
+        UserDefaults.standard.set(apiKeyID, forKey: Self.quotaAPIKeyIDDefaultsKey(profileID: activeProfile.id))
+    }
+
+    @MainActor
+    func refreshGlobalQuota() async {
+        guard managementAccessState == .available, let apiKeyID = quotaAPIKeyID, !apiKeyID.isEmpty else {
+            globalQuota = nil
+            return
+        }
+        let client = OmniRouteClient(profile: activeProfile, credentialStore: credentialStore)
+        let limits = try? await client.listTokenLimits(apiKeyId: apiKeyID)
+        globalQuota = limits?.first { $0.scopeType == "global" }
     }
 }

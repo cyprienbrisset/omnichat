@@ -27,6 +27,10 @@ struct MenuBarChatView: View {
                 healthSection(health)
             }
 
+            if let globalQuota = appEnvironment.globalQuota {
+                quotaSection(globalQuota)
+            }
+
             lastActivitySection
 
             Rectangle().fill(OmniTheme.hairline).frame(height: 1)
@@ -46,7 +50,10 @@ struct MenuBarChatView: View {
         .padding(16)
         .frame(width: 260)
         .background(OmniTheme.paper)
-        .task { loadLastRoutedMessage() }
+        .task {
+            loadLastRoutedMessage()
+            await appEnvironment.refreshGlobalQuota()
+        }
     }
 
     private var header: some View {
@@ -100,6 +107,36 @@ struct MenuBarChatView: View {
             if health.catalogCount > 0 {
                 ProgressView(value: Double(health.activeCount), total: Double(health.catalogCount))
                     .tint(OmniTheme.success)
+            }
+        }
+    }
+
+    /// Real global token quota (`GET /api/usage/token-limits`, scope
+    /// "global") for whichever apiKeyId the user has entered once in
+    /// Administration › Analytique — see `AppEnvironment.globalQuota`'s
+    /// doc comment. Absent entirely (not a fake bar) until that's set up.
+    private func quotaSection(_ quota: TokenLimitEntry) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            OmniTheme.label("Quota global", size: 9, color: OmniTheme.inkSoft)
+            if let remaining = quota.remaining {
+                HStack {
+                    Text("\(remaining) restants")
+                        .font(OmniTheme.serif(14, weight: .semibold))
+                        .foregroundStyle(OmniTheme.ink)
+                    Spacer()
+                    Text("/ \(quota.tokenLimit) jetons")
+                        .font(OmniTheme.mono(10))
+                        .foregroundStyle(OmniTheme.inkSoft)
+                }
+                if quota.tokenLimit > 0 {
+                    let fraction = max(0, min(1, Double(remaining) / Double(quota.tokenLimit)))
+                    ProgressView(value: fraction)
+                        .tint(fraction < 0.15 ? OmniTheme.danger : (fraction < 0.4 ? OmniTheme.warning : OmniTheme.success))
+                }
+            } else {
+                Text("\(quota.tokensUsed ?? 0) / \(quota.tokenLimit) jetons utilisés")
+                    .font(OmniTheme.serif(13, weight: .semibold))
+                    .foregroundStyle(OmniTheme.ink)
             }
         }
     }
