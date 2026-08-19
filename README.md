@@ -9,17 +9,30 @@ Chat multi-modèles, génération média, mémoire, MCP, RAG, comparaison et fus
 [![Swift](https://img.shields.io/badge/Swift-6-F7F4EE?style=flat-square&labelColor=0E0E0E)](#build--lancement)
 [![License](https://img.shields.io/badge/licence-tous%20droits%20réservés-0E0E0E?style=flat-square)](LICENSE)
 
+**[Aperçu](#aperçu) · [Fonctionnalités](#fonctionnalités) · [Architecture](#architecture) · [Build & lancement](#build--lancement) · [Configuration](#configuration)**
+
 </div>
 
 ---
 
 ## Aperçu
 
-<div align="center">
-<img src="docs/screenshots/fusion.png" alt="OmniChat — mode Fusion" width="800" />
-<br/>
-<sub>Mode Fusion : N modèles sources interrogés en parallèle, synthétisés par un modèle juge.</sub>
-</div>
+<table>
+<tr>
+<td width="33%">
+<img src="docs/screenshots/chat.png" alt="OmniChat — chat" />
+<br/><sub align="center">Chat en streaming, rendu markdown natif</sub>
+</td>
+<td width="33%">
+<img src="docs/screenshots/media.png" alt="OmniChat — galerie" />
+<br/><sub align="center">Galerie — génération média</sub>
+</td>
+<td width="33%">
+<img src="docs/screenshots/fusion.png" alt="OmniChat — fusion" />
+<br/><sub align="center">Fusion — N modèles + synthèse par un juge</sub>
+</td>
+</tr>
+</table>
 
 ## Qu'est-ce qu'OmniChat ?
 

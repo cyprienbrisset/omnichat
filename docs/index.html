@@ -166,6 +166,16 @@
     color: var(--ivoire-soft);
   }
 
+  .screenshot-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  @media (max-width: 820px) {
+    .screenshot-grid { grid-template-columns: 1fr; }
+  }
+
   figure.screenshot {
     margin: 0;
     border: 1px solid var(--hairline);
@@ -306,10 +316,20 @@
 <section>
   <div class="wrap">
     <h2>Aperçu</h2>
-    <figure class="screenshot">
-      <img src="screenshots/fusion.png" alt="OmniChat, mode Fusion, capture d'écran réelle" />
-      <figcaption>Mode Fusion — N modèles sources, synthèse par un modèle juge.</figcaption>
-    </figure>
+    <div class="screenshot-grid">
+      <figure class="screenshot">
+        <img src="screenshots/chat.png" alt="OmniChat, fil de conversation, capture d'écran réelle" />
+        <figcaption>Chat — streaming, rendu markdown natif.</figcaption>
+      </figure>
+      <figure class="screenshot">
+        <img src="screenshots/media.png" alt="OmniChat, galerie de génération média, capture d'écran réelle" />
+        <figcaption>Galerie — génération média.</figcaption>
+      </figure>
+      <figure class="screenshot">
+        <img src="screenshots/fusion.png" alt="OmniChat, mode Fusion, capture d'écran réelle" />
+        <figcaption>Fusion — N modèles sources, synthèse par un modèle juge.</figcaption>
+      </figure>
+    </div>
   </div>
 </section>
 
