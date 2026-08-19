@@ -92,6 +92,36 @@ extension OmniRouteClient {
         try await adminMutateNoContent(path: "api/usage/token-limits", method: "POST", body: request)
     }
 
+    // MARK: ACP agents (fully documented response shape)
+
+    public func listACPAgents() async throws -> ACPAgentsResponse {
+        try await adminGET(path: "api/acp/agents", parse: parseACPAgentsResponse)
+    }
+
+    // MARK: Policies / guardrails (undocumented shape — raw snapshot list)
+
+    public func listPolicies() async throws -> [AdminRawSnapshot] {
+        try await adminGET(path: "api/policies", parse: parseAdminRawSnapshotList)
+    }
+
+    // MARK: Network settings (undocumented shape — raw snapshot)
+
+    public func fetchProxySettings() async throws -> AdminRawSnapshot {
+        try await adminGET(path: "api/settings/proxy", parse: parseAdminRawSnapshot)
+    }
+
+    public func fetchIPFilterSettings() async throws -> AdminRawSnapshot {
+        try await adminGET(path: "api/settings/ip-filter", parse: parseAdminRawSnapshot)
+    }
+
+    // MARK: Latency analytics (undocumented exact shape — raw snapshot list;
+    // the API reference only describes the aggregate fields in prose:
+    // avg/p50/p95/p99 latency + success rate per provider/model)
+
+    public func listModelLatencyStats() async throws -> [AdminRawSnapshot] {
+        try await adminGET(path: "api/usage/model-latency-stats", parse: parseAdminRawSnapshotList)
+    }
+
     // MARK: Rate limits (undocumented shape — raw snapshot, like Providers)
     // "Per-account rate limit status" is the only one-line description this
     // endpoint has; rather than guess field names, this surfaces exactly

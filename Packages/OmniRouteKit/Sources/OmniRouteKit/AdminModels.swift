@@ -237,3 +237,51 @@ func parseTokenLimitListResponse(_ data: Data) throws -> [TokenLimitEntry] {
     }
     throw AdminResponseParsingError.unrecognizedShape
 }
+
+// MARK: - ACP agents (fully documented response shape, incl. real JSON example)
+
+public struct ACPAgent: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let name: String
+    public let binary: String?
+    public let version: String?
+    public let installed: Bool
+    public let protocolName: String?
+    public let providerAlias: String?
+    public let isCustom: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, binary, version, installed, providerAlias, isCustom
+        case protocolName = "protocol"
+    }
+
+    public init(
+        id: String,
+        name: String,
+        binary: String?,
+        version: String?,
+        installed: Bool,
+        protocolName: String?,
+        providerAlias: String?,
+        isCustom: Bool
+    ) {
+        self.id = id
+        self.name = name
+        self.binary = binary
+        self.version = version
+        self.installed = installed
+        self.protocolName = protocolName
+        self.providerAlias = providerAlias
+        self.isCustom = isCustom
+    }
+}
+
+public struct ACPAgentsResponse: Decodable, Sendable, Equatable {
+    public let agents: [ACPAgent]
+    public let cacheTtlMs: Double?
+    public let cacheAge: Double?
+}
+
+func parseACPAgentsResponse(_ data: Data) throws -> ACPAgentsResponse {
+    try JSONDecoder().decode(ACPAgentsResponse.self, from: data)
+}

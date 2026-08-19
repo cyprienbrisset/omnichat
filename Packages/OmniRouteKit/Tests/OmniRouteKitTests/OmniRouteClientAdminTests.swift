@@ -223,4 +223,98 @@ final class OmniRouteClientAdminTests: XCTestCase {
         XCTAssertEqual(status.fields["remaining"], .number(42))
         XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/api/rate-limits"))
     }
+
+    func test_listACPAgents_success_decodesDocumentedResponseShape() async throws {
+        let profile = EndpointProfile(id: UUID(), name: "Test", baseURL: URL(string: "https://omniroute.online/v1")!)
+        let store = InMemoryCredentialStore()
+        var capturedURL: URL?
+        MockURLProtocol.requestHandler = { request in
+            capturedURL = request.url
+            let json = #"""
+            {"agents":[{"id":"claude","name":"Claude Code CLI","binary":"claude","version":"1.0.45","installed":true,"protocol":"stdio","providerAlias":"claude","isCustom":false}],"cacheTtlMs":60000,"cacheAge":1234}
+            """#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+        let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
+
+        let result = try await client.listACPAgents()
+
+        XCTAssertEqual(result.agents.map(\.id), ["claude"])
+        XCTAssertEqual(result.agents.first?.installed, true)
+        XCTAssertEqual(result.cacheTtlMs, 60000)
+        XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/api/acp/agents"))
+    }
+
+    func test_listPolicies_success_parsesRawSnapshotListFromCorrectPath() async throws {
+        let profile = EndpointProfile(id: UUID(), name: "Test", baseURL: URL(string: "https://omniroute.online/v1")!)
+        let store = InMemoryCredentialStore()
+        var capturedURL: URL?
+        MockURLProtocol.requestHandler = { request in
+            capturedURL = request.url
+            let json = #"[{"id":"p1","name":"No PII"}]"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+        let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
+
+        let policies = try await client.listPolicies()
+
+        XCTAssertEqual(policies.map(\.id), ["p1"])
+        XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/api/policies"))
+    }
+
+    func test_fetchProxySettings_success_parsesRawSnapshotFromCorrectPath() async throws {
+        let profile = EndpointProfile(id: UUID(), name: "Test", baseURL: URL(string: "https://omniroute.online/v1")!)
+        let store = InMemoryCredentialStore()
+        var capturedURL: URL?
+        MockURLProtocol.requestHandler = { request in
+            capturedURL = request.url
+            let json = #"{"enabled":false}"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+        let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
+
+        let settings = try await client.fetchProxySettings()
+
+        XCTAssertEqual(settings.fields["enabled"], .bool(false))
+        XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/api/settings/proxy"))
+    }
+
+    func test_fetchIPFilterSettings_success_parsesRawSnapshotFromCorrectPath() async throws {
+        let profile = EndpointProfile(id: UUID(), name: "Test", baseURL: URL(string: "https://omniroute.online/v1")!)
+        let store = InMemoryCredentialStore()
+        var capturedURL: URL?
+        MockURLProtocol.requestHandler = { request in
+            capturedURL = request.url
+            let json = #"{"mode":"allowlist"}"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+        let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
+
+        let settings = try await client.fetchIPFilterSettings()
+
+        XCTAssertEqual(settings.fields["mode"], .string("allowlist"))
+        XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/api/settings/ip-filter"))
+    }
+
+    func test_listModelLatencyStats_success_parsesRawSnapshotListFromCorrectPath() async throws {
+        let profile = EndpointProfile(id: UUID(), name: "Test", baseURL: URL(string: "https://omniroute.online/v1")!)
+        let store = InMemoryCredentialStore()
+        var capturedURL: URL?
+        MockURLProtocol.requestHandler = { request in
+            capturedURL = request.url
+            let json = #"[{"provider":"openai","model":"gpt-4o","avgMs":312,"successRate":0.994}]"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+        let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
+
+        let stats = try await client.listModelLatencyStats()
+
+        XCTAssertEqual(stats.first?.fields["avgMs"], .number(312))
+        XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/api/usage/model-latency-stats"))
+    }
 }

@@ -404,52 +404,61 @@ enregistrées dans un round persisté (un échec de source ne produit pas de
 Nouvelle icône du rail (curseurs), visible **uniquement** si la clé active a
 les droits de gestion (`managementAccessState == .available`, même garde
 que Mémoire/MCP) — une clé sans ces droits ne voit pas l'entrée du tout,
-plutôt que de la voir échouer avec une erreur d'auth. Trois écrans :
+plutôt que de la voir échouer avec une erreur d'auth. Contrairement aux
+autres écrans de gestion (Mémoire, MCP), ce panneau **modifie** la
+configuration réelle du serveur connecté (au lieu de seulement la lire) —
+d'où la garde d'accès stricte et le choix de toujours remonter le message
+d'erreur serveur réel plutôt qu'un message générique, surtout là où le
+corps de requête est une hypothèse plutôt qu'un fait documenté.
 
-- **Fournisseurs** (`GET/DELETE /api/providers`, `POST
-  /api/providers/{id}/test`) — la forme exacte n'est documentée qu'en prose
-  (pas de noms de champs garantis), donc chaque fournisseur reste une
-  capture brute (`AdminRawSnapshot`) en dessous, mais une vraie carte met
-  désormais en avant tout ce qu'on reconnaît sous plusieurs noms candidats :
-  pastille de statut (`isActive`), badges type/auth (`provider`/`authType`),
-  plan/tier (extraits même s'ils sont imbriqués dans un champ comme
-  `providerSpecificData` — confirmé en direct sur un fournisseur connecté
-  par OAuth), priorité, protection rate-limit (`rateLimitProtection`/
-  `backoffLevel`), et l'expiration du token en relatif (« expire dans 8 h »)
-  plutôt qu'un horodatage ISO brut. Le reste des champs (une vingtaine sur
-  un fournisseur OAuth réel) se déplie en grille à deux colonnes, jamais un
-  mur d'une seule colonne. **Correctif :** `JSONValue.displayValue` pour un
-  objet imbriqué n'affichait que les *noms* de ses clés (`{plan, tier, ...}`),
-  jamais leurs valeurs — un fournisseur avec un plan/tier réel dans
-  `providerSpecificData` ne montrait donc littéralement rien d'utile ; il
-  affiche maintenant les vraies paires clé/valeur récursivement
-  (`{plan: pro, tier: 2}`). Bouton « Tester » par fournisseur, suppression
-  avec confirmation. La création (`POST /api/providers`) envoie un corps au
-  mieux (`{name, provider, apiKey}`) : **la forme réelle attendue n'est pas
-  documentée** dans la référence d'API. L'écran d'ajout le dit explicitement
-  et, si le serveur refuse ces champs, affiche son vrai message d'erreur Zod
-  (`throwWithServerMessage`) plutôt qu'un « requête invalide » générique.
-- **Budget** (`GET/POST /api/usage/budget`) — schéma entièrement documenté
-  (Zod) dans la référence d'API : formulaire complet (jour/semaine/mois,
-  seuil d'alerte en %, intervalle de réinitialisation), pas seulement la
-  limite mensuelle.
-- **Limites & quotas** (`GET/POST/DELETE /api/usage/token-limits` +
-  `GET /api/rate-limits`) — **c'est ici que se trouve le vrai quota restant
-  par fournisseur** : un vrai sélecteur de portée (Global/Modèle/Fournisseur,
-  pas une devinette sur le texte saisi comme avant) permet de définir une
-  limite scoped `provider`, et la lecture enrichit chaque limite avec
-  `tokensUsed`/`remaining`/`nextResetAt` réels — affichés avec une barre de
-  progression (rouge sous 15% restant, orange sous 40%). En dessous, le
-  statut de rate-limit du compte (`GET /api/rate-limits`, forme non
-  documentée elle aussi) s'affiche en lecture seule, en brut comme
-  Fournisseurs.
+Huit pages en sidebar (deux groupes, « Passerelle » et « Contrôle »), avec
+du contenu réel là où une forme de réponse existe (documentée ou
+suffisamment sûre à afficher brute), et un état honnête « Bientôt » là où
+ce n'est pas encore le cas :
 
-Contrairement aux autres écrans de gestion (Mémoire, MCP), ce panneau
-**modifie** la configuration réelle du serveur connecté (au lieu de
-seulement la lire) — d'où la garde d'accès stricte et le choix de toujours
-remonter le message d'erreur serveur réel plutôt qu'un message générique,
-surtout là où le corps de requête est une hypothèse plutôt qu'un fait
-documenté.
+- **Serveur & santé** — réutilise `/api/monitoring/health` déjà chargé au
+  lancement (catalogue/configurés/actifs/surveillés), avec un bouton
+  Actualiser réel.
+- **Fournisseurs & clés** — refonte en vrai tableau filtrable : chips de
+  filtre construites dynamiquement à partir des vraies valeurs
+  `authType`/`provider` rencontrées (jamais les catégories fixes du
+  mockup — un « gratuit » ou un « local » n'apparaît que si le serveur le
+  renvoie réellement), plus un filtre « en panne » dérivé de signaux réels
+  (`isActive`, échec de test, verrou de rate-limit actif). Carte par
+  fournisseur : pastille de statut, badges type/auth/plan/priorité/
+  rate-limit, expiration relative du token, secret/santé de clé
+  (`providerSpecificData.apiKeyHealth` quand présent) — le reste des champs
+  bruts se déplie en grille à deux colonnes. Bouton « Tout tester » en plus
+  du test par ligne. La création reste une hypothèse de corps
+  (`{name, provider, apiKey}`, forme réelle non documentée) qui affiche le
+  vrai message d'erreur Zod du serveur si elle est refusée.
+- **Routage & combos**, **Compression** — pages « Bientôt » honnêtes :
+  `/api/combos*` et `/api/compression/preview` n'ont de schéma documenté
+  qu'en prose ; construire ces écrans sur une hypothèse de champs risquerait
+  d'afficher une donnée réelle sous une mauvaise étiquette. Nécessitent une
+  découverte API en direct contre une vraie clé de gestion (voir tâche
+  « Combos/Fusion/Compression » — Fusion est fait, ces deux-là restent).
+- **Garde-fous** — `GET /api/policies` (« Manage routing policies »), en
+  snapshot brut honnête comme Fournisseurs (forme non documentée au-delà
+  d'une ligne de description).
+- **Agents & outils** — `GET /api/acp/agents`, la seule nouvelle page de
+  cette passe avec un **schéma de réponse entièrement documenté** (exemple
+  JSON réel dans la référence d'API) : agents CLI détectés (intégrés ou
+  personnalisés), avec statut d'installation, version, binaire, protocole.
+  Aucun champ deviné ici.
+- **Réseau & confidentialité** — `GET /api/settings/proxy` +
+  `GET /api/settings/ip-filter`, deux ressources à forme non documentée,
+  affichées en snapshot brut.
+- **Analytique & coûts** — regroupe Budget (schéma Zod entièrement
+  documenté : jour/semaine/mois, seuil d'alerte, intervalle de
+  réinitialisation), Limites & quotas (**c'est ici que se trouve le vrai
+  quota restant par fournisseur** : un vrai sélecteur de portée Global/
+  Modèle/Fournisseur — remplace l'ancienne devinette sur le texte saisi qui
+  ne pouvait jamais viser « fournisseur » — avec barre de progression
+  colorée une fois `tokensUsed`/`remaining` renvoyés, plus le statut de
+  rate-limit par compte), et une nouvelle section Latence & succès
+  (`GET /api/usage/model-latency-stats`, agrégats non documentés au niveau
+  des champs, affichés en brut).
 
 ## Sous-projets liés
 
