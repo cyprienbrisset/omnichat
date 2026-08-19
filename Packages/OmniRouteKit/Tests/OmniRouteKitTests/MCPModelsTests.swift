@@ -57,6 +57,11 @@ final class MCPModelsTests: XCTestCase {
         XCTAssertThrowsError(try parseMCPRawSnapshot(Data("[1,2,3]".utf8)))
     }
 
+    func test_jsonValue_displayValue_nestedObject_rendersRealKeyValuePairsNotJustKeys() {
+        let value = JSONValue.object(["plan": .string("pro"), "tier": .number(2)])
+        XCTAssertEqual(value.displayValue, "{plan: pro, tier: 2}")
+    }
+
     func test_parseMCPAuditListResponse_parsesBareArrayOfRawObjects() throws {
         let json = #"[{"tool":"web_search","success":true,"durationMs":84}]"#
         let entries = try parseMCPAuditListResponse(Data(json.utf8))

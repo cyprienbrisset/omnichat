@@ -386,17 +386,26 @@ plutôt que de la voir échouer avec une erreur d'auth. Trois écrans :
 - **Fournisseurs** (`GET/DELETE /api/providers`, `POST
   /api/providers/{id}/test`) — la forme exacte n'est documentée qu'en prose
   (pas de noms de champs garantis), donc chaque fournisseur reste une
-  capture brute (`AdminRawSnapshot`), mais les champs qu'on reconnaît sous
-  plusieurs noms candidats (nom, type, statut, `rateLimitedUntil`) sont
-  désormais mis en avant dans une vraie carte — le reste des champs bruts
-  reste consultable en dépliant « Afficher tous les champs », plutôt qu'un
-  mur de clé/valeur en permanence. Bouton « Tester » par fournisseur,
-  suppression avec confirmation. La création (`POST /api/providers`)
-  envoie un corps au mieux (`{name, provider, apiKey}`) : **la forme réelle
-  attendue n'est pas documentée** dans la référence d'API. L'écran d'ajout
-  le dit explicitement et, si le serveur refuse ces champs, affiche son
-  vrai message d'erreur Zod (`throwWithServerMessage`) plutôt qu'un
-  « requête invalide » générique.
+  capture brute (`AdminRawSnapshot`) en dessous, mais une vraie carte met
+  désormais en avant tout ce qu'on reconnaît sous plusieurs noms candidats :
+  pastille de statut (`isActive`), badges type/auth (`provider`/`authType`),
+  plan/tier (extraits même s'ils sont imbriqués dans un champ comme
+  `providerSpecificData` — confirmé en direct sur un fournisseur connecté
+  par OAuth), priorité, protection rate-limit (`rateLimitProtection`/
+  `backoffLevel`), et l'expiration du token en relatif (« expire dans 8 h »)
+  plutôt qu'un horodatage ISO brut. Le reste des champs (une vingtaine sur
+  un fournisseur OAuth réel) se déplie en grille à deux colonnes, jamais un
+  mur d'une seule colonne. **Correctif :** `JSONValue.displayValue` pour un
+  objet imbriqué n'affichait que les *noms* de ses clés (`{plan, tier, ...}`),
+  jamais leurs valeurs — un fournisseur avec un plan/tier réel dans
+  `providerSpecificData` ne montrait donc littéralement rien d'utile ; il
+  affiche maintenant les vraies paires clé/valeur récursivement
+  (`{plan: pro, tier: 2}`). Bouton « Tester » par fournisseur, suppression
+  avec confirmation. La création (`POST /api/providers`) envoie un corps au
+  mieux (`{name, provider, apiKey}`) : **la forme réelle attendue n'est pas
+  documentée** dans la référence d'API. L'écran d'ajout le dit explicitement
+  et, si le serveur refuse ces champs, affiche son vrai message d'erreur Zod
+  (`throwWithServerMessage`) plutôt qu'un « requête invalide » générique.
 - **Budget** (`GET/POST /api/usage/budget`) — schéma entièrement documenté
   (Zod) dans la référence d'API : formulaire complet (jour/semaine/mois,
   seuil d'alerte en %, intervalle de réinitialisation), pas seulement la

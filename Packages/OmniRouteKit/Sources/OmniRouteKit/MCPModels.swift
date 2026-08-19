@@ -145,7 +145,8 @@ public indirect enum JSONValue: Decodable, Sendable, Equatable {
         case .bool(let value): return value ? "true" : "false"
         case .null: return "—"
         case .array(let values): return "[" + values.map(\.displayValue).joined(separator: ", ") + "]"
-        case .object(let fields): return "{" + fields.keys.sorted().joined(separator: ", ") + "}"
+        case .object(let fields):
+            return "{" + fields.keys.sorted().map { "\($0): \(fields[$0]!.displayValue)" }.joined(separator: ", ") + "}"
         }
     }
 }

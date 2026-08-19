@@ -109,10 +109,14 @@ private struct RawFieldRows: View {
 /// Folds the fields a card already surfaced prominently out of the raw
 /// dump — expandable on demand, same "Afficher tout" pattern used for long
 /// tool results in the chat thread, rather than a permanent wall of text.
+/// Laid out two-per-row once expanded so a couple dozen leftover fields
+/// read as a compact table, not a single tall column.
 private struct CollapsibleRawFields: View {
     let collapsedLabel: String
     let entries: [(key: String, value: String)]
     @State private var isExpanded = false
+
+    private static let columns = [GridItem(.flexible(), alignment: .top), GridItem(.flexible(), alignment: .top)]
 
     var body: some View {
         if !entries.isEmpty {
@@ -122,29 +126,97 @@ private struct CollapsibleRawFields: View {
                 }
                 .buttonStyle(.omniLink)
                 if isExpanded {
-                    RawFieldRows(entries: entries)
+                    LazyVGrid(columns: Self.columns, alignment: .leading, spacing: 6) {
+                        ForEach(entries, id: \.key) { entry in
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(entry.key)
+                                    .font(OmniTheme.mono(8, weight: .semibold))
+                                    .foregroundStyle(OmniTheme.inkSoft)
+                                Text(entry.value)
+                                    .font(OmniTheme.mono(9))
+                                    .foregroundStyle(OmniTheme.ink)
+                                    .lineLimit(3)
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
+/// A small pill used to surface one real fact at a glance — status, auth
+/// type, plan, whatever the raw snapshot actually contains. Never invented:
+/// every call site only builds one when the underlying field was present.
+private struct AdminBadge: View {
+    let text: String
+    var color: Color = OmniTheme.accent
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.system(size: 8, weight: .bold, design: .monospaced))
+            .tracking(0.6)
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.14))
+            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+    }
+}
+
+private enum AdminDateFormatting {
+    static let iso: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let relative: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.unitsStyle = .short
+        return formatter
+    }()
+
+    /// "expire dans 8 h" / "a expiré il y a 2 j" — falls back to `nil`
+    /// (never a fabricated date) if the raw string isn't real ISO 8601.
+    static func relativeDescription(for isoString: String) -> String? {
+        guard let date = iso.date(from: isoString) else { return nil }
+        return relative.localizedString(for: date, relativeTo: Date())
+    }
+}
+
 // MARK: - Providers
 
-/// The handful of concepts almost any provider row is likely to carry
-/// (name, provider type, status, rate-limit lockout), pulled out of the raw
-/// snapshot under several candidate key names — everything else stays in
-/// the raw, collapsible fallback rather than being guessed at.
+/// The concepts a provider row is likely to carry, pulled out of the raw
+/// snapshot under several candidate key names (including one real shape
+/// confirmed live: an OAuth-connected account, e.g. `authType: "oauth"` +
+/// `providerSpecificData: {plan, tier, subscriptionTier, ...}`) — anything
+/// not recognized here stays in the raw, collapsible fallback rather than
+/// being guessed at.
 private struct ProviderDisplayFields {
     let name: String?
     let providerType: String?
-    let status: String?
+    let authType: String?
+    let isActive: Bool?
+    let testStatus: String?
+    let priority: Double?
+    let rateLimitProtection: Bool?
+    let backoffLevel: Double?
+    let plan: String?
+    let tier: String?
+    let subscriptionTier: String?
     let rateLimitedUntil: String?
+    /// The nearer of `tokenExpiresAt`/`expiresAt`, relative to now — most
+    /// relevant for an OAuth connection whose token needs periodic refresh.
+    let expiryDescription: String?
     let remainingFields: [(key: String, value: String)]
 
     private static let knownKeys: Set<String> = [
         "name", "label", "provider", "type", "providerType", "status", "enabled",
-        "rateLimitedUntil", "id", "providerId", "_id", "slug",
+        "rateLimitedUntil", "id", "providerId", "_id", "slug", "email",
+        "authType", "isActive", "testStatus", "priority", "rateLimitProtection",
+        "backoffLevel", "tokenExpiresAt", "expiresAt",
     ]
 
     init(_ snapshot: AdminRawSnapshot) {
@@ -154,10 +226,33 @@ private struct ProviderDisplayFields {
             }
             return nil
         }
-        name = firstString(["name", "label"])
+        func bool(_ key: String) -> Bool? {
+            if case .bool(let value)? = snapshot.fields[key] { return value }
+            return nil
+        }
+        func number(_ key: String) -> Double? {
+            if case .number(let value)? = snapshot.fields[key] { return value }
+            return nil
+        }
+        func nestedString(_ topKey: String, _ nestedKey: String) -> String? {
+            guard case .object(let nested)? = snapshot.fields[topKey] else { return nil }
+            if case .string(let value)? = nested[nestedKey] { return value }
+            return nil
+        }
+
+        name = firstString(["name", "label", "email"])
         providerType = firstString(["provider", "type", "providerType"])
-        status = firstString(["status"]) ?? snapshot.fields["enabled"].map(\.displayValue)
+        authType = firstString(["authType"])
+        isActive = bool("isActive")
+        testStatus = firstString(["testStatus"])
+        priority = number("priority")
+        rateLimitProtection = bool("rateLimitProtection")
+        backoffLevel = number("backoffLevel")
+        plan = nestedString("providerSpecificData", "plan")
+        tier = nestedString("providerSpecificData", "tier")
+        subscriptionTier = nestedString("providerSpecificData", "subscriptionTier")
         rateLimitedUntil = firstString(["rateLimitedUntil"])
+        expiryDescription = firstString(["tokenExpiresAt", "expiresAt"]).flatMap(AdminDateFormatting.relativeDescription)
         remainingFields = snapshot.sortedEntries.filter { !Self.knownKeys.contains($0.key) }
     }
 }
@@ -178,7 +273,7 @@ private struct ProvidersSectionView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("La forme exacte de /api/providers n'est pas documentée — les champs reconnus (nom, type, statut) sont mis en avant, le reste reste consultable en détail.")
+                Text("La forme exacte de /api/providers n'est pas documentée — les champs reconnus (statut, type/auth, plan, priorité, protection rate-limit, expiration) sont mis en avant, le reste reste consultable en détail.")
                     .font(OmniTheme.serif(11).italic())
                     .foregroundStyle(OmniTheme.inkSoft)
                 Spacer()
@@ -253,43 +348,24 @@ private struct ProvidersSectionView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func statusColor(_ status: String) -> Color {
-        switch status.lowercased() {
-        case "active", "true", "enabled", "ok", "healthy": return OmniTheme.success
-        case "false", "disabled", "inactive": return OmniTheme.inkSoft
-        default: return OmniTheme.warning
-        }
-    }
-
     private func providerRow(_ provider: AdminRawSnapshot) -> some View {
         let display = ProviderDisplayFields(provider)
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(display.name ?? provider.id)
-                            .font(OmniTheme.serif(15, weight: .semibold))
-                            .foregroundStyle(OmniTheme.ink)
-                        if let providerType = display.providerType {
-                            OmniTheme.label(providerType, size: 8, color: OmniTheme.accent)
-                        }
-                    }
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                if let isActive = display.isActive {
+                    Circle()
+                        .fill(isActive ? OmniTheme.success : OmniTheme.inkSoft)
+                        .frame(width: 8, height: 8)
+                        .padding(.top, 6)
+                }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(display.name ?? provider.id)
+                        .font(OmniTheme.serif(16, weight: .semibold))
+                        .foregroundStyle(OmniTheme.ink)
                     Text(provider.id)
                         .font(OmniTheme.mono(9))
                         .foregroundStyle(OmniTheme.inkSoft)
-                    if let status = display.status {
-                        HStack(spacing: 5) {
-                            Circle().fill(statusColor(status)).frame(width: 6, height: 6)
-                            Text(status)
-                                .font(OmniTheme.mono(9))
-                                .foregroundStyle(OmniTheme.inkSoft)
-                        }
-                    }
-                    if let rateLimitedUntil = display.rateLimitedUntil {
-                        Text("Limité (rate limit) jusqu'à \(rateLimitedUntil)")
-                            .font(OmniTheme.mono(9))
-                            .foregroundStyle(OmniTheme.warning)
-                    }
+                    badgeRow(display)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 6) {
@@ -310,7 +386,64 @@ private struct ProvidersSectionView: View {
             )
         }
         .padding(.horizontal, 24)
-        .padding(.vertical, 12)
+        .padding(.vertical, 14)
+    }
+
+    /// Every badge here only appears when its underlying real field was
+    /// present — an OAuth connection and a plain API-key provider surface
+    /// entirely different subsets, and that's fine.
+    @ViewBuilder
+    private func badgeRow(_ display: ProviderDisplayFields) -> some View {
+        let items = badgeItems(display)
+        if !items.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    AdminBadge(text: item.text, color: item.color)
+                }
+            }
+        }
+    }
+
+    private func badgeItems(_ display: ProviderDisplayFields) -> [(text: String, color: Color)] {
+        var items: [(text: String, color: Color)] = []
+        if let providerType = display.providerType {
+            items.append((providerType, OmniTheme.accent))
+        }
+        if let authType = display.authType {
+            items.append((authType, OmniTheme.accent))
+        }
+        if let testStatus = display.testStatus {
+            items.append((testStatus, statusColor(testStatus)))
+        }
+        if let plan = display.plan {
+            items.append(("plan \(plan)", OmniTheme.ink))
+        }
+        if let tier = display.tier {
+            items.append(("tier \(tier)", OmniTheme.ink))
+        } else if let subscriptionTier = display.subscriptionTier {
+            items.append((subscriptionTier, OmniTheme.ink))
+        }
+        if let priority = display.priority {
+            items.append(("priorité \(Int(priority))", OmniTheme.inkSoft))
+        }
+        if display.rateLimitProtection == true || (display.backoffLevel ?? 0) > 0 {
+            items.append(("rate-limit", OmniTheme.warning))
+        }
+        if let rateLimitedUntil = display.rateLimitedUntil {
+            items.append(("limité jusqu'à \(rateLimitedUntil)", OmniTheme.danger))
+        }
+        if let expiryDescription = display.expiryDescription {
+            items.append((expiryDescription, OmniTheme.inkSoft))
+        }
+        return items
+    }
+
+    private func statusColor(_ status: String) -> Color {
+        switch status.lowercased() {
+        case "active", "true", "enabled", "ok", "healthy": return OmniTheme.success
+        case "false", "disabled", "inactive": return OmniTheme.inkSoft
+        default: return OmniTheme.warning
+        }
     }
 
     private func load() async {
