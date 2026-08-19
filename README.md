@@ -1,5 +1,7 @@
 # OmniChat
 
+![OmniChat](docs/brand/omnichat-lockup-horizontal.png)
+
 App macOS native (Swift + SwiftUI, macOS 26+) pour exploiter
 [OmniRoute](https://github.com/diegosouzapw/OmniRoute), une passerelle IA
 open-source agrégeant 339 fournisseurs de modèles derrière une API
@@ -58,6 +60,20 @@ qu'aux bulles de chat classiques : une requête utilisateur se lit comme une
 citation en italique, une réponse comme un paragraphe de prose. Le thème
 est centralisé dans `OmniChat/Support/Theme.swift` (`OmniTheme`) et
 s'adapte clair/sombre comme avant.
+
+Le monogramme « OC » et l'identité de marque (Noir Presse `#0E0E0E`,
+Ivoire Papier `#F7F4EE`, Or Mat en accent `#C9A96E`) vivent dans
+[`docs/brand/`](docs/brand/) : lockup horizontal, bannière sombre, tuiles
+d'icône claire/sombre, plus les deux sources réellement utilisées dans le
+build — `omnichat-appicon-flat-1024.png` (carré plat sans ombre ni coin
+arrondi pré-cuits, recoloré en duotone Noir Presse/Ivoire Papier à partir
+du monogramme du calque source, conforme aux consignes Apple pour
+`AppIcon.appiconset` — c'est macOS qui applique lui-même l'arrondi et
+l'ombre) et `omnichat-brand-mark-template.png` (même monogramme en
+« template », alpha seul, pour être teinté à la volée dans l'UI). Le
+monogramme remplace désormais le repère texte `"O"` dans le rail, le
+bulletin de la menu bar, l'écran de connexion et l'état vide de la liste
+de conversations.
 
 Ce traitement est appliqué à la fenêtre principale (conversation +
 sidebar), aux réglages/premier lancement et au menu bar. Le registre des

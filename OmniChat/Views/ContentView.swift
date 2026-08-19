@@ -229,9 +229,12 @@ struct ContentView: View {
 
     private var emptyState: some View {
         VStack(spacing: 14) {
-            Text("O")
-                .font(OmniTheme.serif(20, weight: .semibold))
+            Image("BrandMark")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
                 .foregroundStyle(OmniTheme.railText)
+                .padding(9)
                 .frame(width: 44, height: 44)
                 .background(OmniTheme.rail)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))

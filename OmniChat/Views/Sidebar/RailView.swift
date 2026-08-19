@@ -32,9 +32,12 @@ struct RailView: View {
             // the window uses a hidden title bar — no decorative stand-ins.
             Spacer().frame(height: 28)
 
-            Text("O")
-                .font(OmniTheme.serif(14, weight: .semibold))
+            Image("BrandMark")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
                 .foregroundStyle(OmniTheme.railText)
+                .padding(5)
                 .frame(width: 26, height: 26)
                 .overlay(
                     RoundedRectangle(cornerRadius: 4, style: .continuous)

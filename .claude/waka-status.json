@@ -3,9 +3,9 @@
   "session_id": "unknown",
   "project_name": "OmniChat",
   "project_path": "/Users/Cyprien/Developpement/OmniChat",
-  "started_at": "2026-08-17T13:13:54Z",
+  "started_at": "2026-08-19T09:19:23Z",
   "status": "active",
-  "last_activity": "2026-08-17T13:21:37Z",
+  "last_activity": "2026-08-19T09:33:48Z",
   "pipeline": {
     "current_phase": null,
     "current_phase_name": null,
@@ -19,7 +19,7 @@
   "errors": [],
   "metrics": {
     "total_tokens": 0,
-    "total_tool_uses": 6,
+    "total_tool_uses": 47,
     "total_files": 0,
     "total_messages": 0,
     "phase_timings": {}

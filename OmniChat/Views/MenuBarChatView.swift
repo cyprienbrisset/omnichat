@@ -51,9 +51,12 @@ struct MenuBarChatView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Text("O")
-                .font(OmniTheme.serif(12, weight: .semibold))
+            Image("BrandMark")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
                 .foregroundStyle(OmniTheme.railText)
+                .padding(3)
                 .frame(width: 20, height: 20)
                 .background(OmniTheme.rail)
                 .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))

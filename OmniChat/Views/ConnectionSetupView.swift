@@ -63,9 +63,12 @@ struct ConnectionSetupView: View {
 
     private var header: some View {
         VStack(spacing: 10) {
-            Text("O")
-                .font(OmniTheme.serif(20, weight: .bold))
+            Image("BrandMark")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
                 .foregroundStyle(OmniTheme.ink)
+                .padding(8)
                 .frame(width: 44, height: 44)
                 .overlay(RoundedRectangle(cornerRadius: 0).stroke(OmniTheme.ink, lineWidth: 1))
 
