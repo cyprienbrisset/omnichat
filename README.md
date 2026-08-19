@@ -460,6 +460,33 @@ ce n'est pas encore le cas :
   (`GET /api/usage/model-latency-stats`, agrégats non documentés au niveau
   des champs, affichés en brut).
 
+## Bulletin de la menu bar
+
+Ouvre-le en cliquant l'icône de la menu bar. Reprend le mockup 2f
+(bulletin passerelle : quota, santé, dernière bascule) avec une décision
+de scope explicite : pas de champ inventé contre des endpoints non
+documentés (`/api/usage/model-latency-stats`, `/api/resilience/
+model-cooldowns` — testés en direct, 401 sans forme de champs révélée,
+et cet environnement n'a pas de vraie clé de gestion pour aller plus
+loin). Le bulletin affiche donc uniquement des données déjà sûres :
+
+- **Fournisseurs actifs** — `appEnvironment.monitoringHealth` déjà chargé
+  au lancement (`actifs / catalogue`, barre de progression réelle) — pas
+  de second appel réseau pour ouvrir le popover.
+- **Dernière réponse routée** — pas tirée d'un endpoint d'analytique
+  serveur, mais de la télémétrie qu'OmniChat capture déjà lui-même sur
+  chaque message (`routingStrategy`/`routingProvider`/`routingLatencyMs`,
+  lus depuis les en-têtes `X-OmniRoute-*`) : un scan borné (20 derniers
+  messages, toutes conversations) trouve le dernier avec une vraie
+  télémétrie et affiche « stratégie → fournisseur · latence », en relatif
+  dans le temps. Absent plutôt que fabriqué si rien n'a encore de
+  télémétrie.
+
+Un futur passage pourra ajouter les vraies statistiques serveur (sains/
+succès/P50, dernière bascule détectée côté OmniRoute) si quelqu'un colle
+une réponse authentifiée réelle de ces deux endpoints — même discipline
+que le reste de l'app : jamais deviner un nom de champ.
+
 ## Sous-projets liés
 
 - **OmniChat** (ce dépôt) — l'app macOS native.
