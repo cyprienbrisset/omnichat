@@ -7,47 +7,43 @@ import AppKit
 /// primary actions. Centralized here so every view draws from the same palette
 /// instead of hardcoding colors/fonts independently.
 enum OmniTheme {
+    // MARK: Brand charter (docs/brand/) — the three canonical swatches from
+    // the OmniChat logo sheet. Every color below derives from these three
+    // values rather than restating its own hex, so the palette stays in
+    // sync with the brand assets by construction.
+    private static let noirPresse = NSColor(calibratedRed: CGFloat(0x0E) / 255, green: CGFloat(0x0E) / 255, blue: CGFloat(0x0E) / 255, alpha: 1)
+    private static let ivoirePapier = NSColor(calibratedRed: CGFloat(0xF7) / 255, green: CGFloat(0xF4) / 255, blue: CGFloat(0xEE) / 255, alpha: 1)
+    private static let orMat = NSColor(calibratedRed: CGFloat(0xC9) / 255, green: CGFloat(0xA9) / 255, blue: CGFloat(0x6E) / 255, alpha: 1)
+
     // MARK: Paper (backgrounds)
 
-    static let paper = Color(
-        light: NSColor(calibratedRed: 0.961, green: 0.937, blue: 0.886, alpha: 1),
-        dark: NSColor(calibratedRed: 0.110, green: 0.102, blue: 0.090, alpha: 1)
-    )
+    static let paper = Color(light: ivoirePapier, dark: noirPresse)
 
     static let paperMuted = Color(
-        light: NSColor(calibratedRed: 0.929, green: 0.898, blue: 0.827, alpha: 1),
-        dark: NSColor(calibratedRed: 0.141, green: 0.129, blue: 0.098, alpha: 1)
+        light: NSColor(calibratedRed: 0.937, green: 0.918, blue: 0.874, alpha: 1),
+        dark: NSColor(calibratedRed: 0.086, green: 0.082, blue: 0.063, alpha: 1)
     )
 
     // MARK: Ink (text)
 
-    static let ink = Color(
-        light: NSColor(calibratedRed: 0.098, green: 0.082, blue: 0.071, alpha: 1),
-        dark: NSColor(calibratedRed: 0.949, green: 0.925, blue: 0.867, alpha: 1)
-    )
+    static let ink = Color(light: noirPresse, dark: ivoirePapier)
 
-    static let inkSoft = Color(
-        light: NSColor(calibratedRed: 0.098, green: 0.082, blue: 0.071, alpha: 0.55),
-        dark: NSColor(calibratedRed: 0.949, green: 0.925, blue: 0.867, alpha: 0.55)
-    )
+    static let inkSoft = ink.opacity(0.55)
 
-    static let hairline = Color(
-        light: NSColor(calibratedRed: 0.098, green: 0.082, blue: 0.071, alpha: 0.16),
-        dark: NSColor(calibratedRed: 0.949, green: 0.925, blue: 0.867, alpha: 0.16)
-    )
+    static let hairline = ink.opacity(0.16)
 
     /// The rail, menu-bar header, and filled primary buttons always sit on
     /// ink-black — a fixed "printed" surface rather than one that inverts
     /// with the appearance, echoing how black ink stays black on any page.
-    static let rail = Color(nsColor: NSColor(calibratedRed: 0.098, green: 0.082, blue: 0.071, alpha: 1))
-    static let railText = Color(nsColor: NSColor(calibratedRed: 0.961, green: 0.937, blue: 0.886, alpha: 1))
+    static let rail = Color(nsColor: noirPresse)
+    static let railText = Color(nsColor: ivoirePapier)
 
     // MARK: Accents
 
-    static let accent = Color(
-        light: NSColor(calibratedRed: 0.231, green: 0.435, blue: 0.878, alpha: 1),
-        dark: NSColor(calibratedRed: 0.431, green: 0.576, blue: 0.933, alpha: 1)
-    )
+    /// "Or Mat" from the brand charter — a single fixed value (not
+    /// light/dark-adaptive) since a matte-gold accent is meant to read the
+    /// same way against both paper and ink, like foil on a printed page.
+    static let accent = Color(nsColor: orMat)
 
     static let success = Color(
         light: NSColor(calibratedRed: 0.184, green: 0.490, blue: 0.310, alpha: 1),
@@ -73,8 +69,26 @@ enum OmniTheme {
 
     // MARK: Typography
 
+    /// The brand charter specifies Spectral for prose/titles (Romie and
+    /// Canela, the display faces used for the wordmark itself, are
+    /// commercial and not bundled here — see docs/brand/). Spectral ships
+    /// under the SIL Open Font License as static per-weight files in
+    /// `Resources/Fonts/`, registered at launch via the bundle's
+    /// `ATSApplicationFontsPath`; picking the exact PostScript name per
+    /// weight (rather than `Font.custom("Spectral", ...).weight(...)`)
+    /// avoids depending on AppKit's family+trait resolution for the base
+    /// weight — `.italic()` at call sites still relies on it, verified
+    /// separately to correctly resolve e.g. Spectral-Bold + italic trait
+    /// to Spectral-BoldItalic.
     static func serif(_ size: CGFloat = 15, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .serif)
+        let postScriptName: String
+        switch weight {
+        case .medium: postScriptName = "Spectral-Medium"
+        case .semibold: postScriptName = "Spectral-SemiBold"
+        case .bold, .heavy, .black: postScriptName = "Spectral-Bold"
+        default: postScriptName = "Spectral-Regular"
+        }
+        return .custom(postScriptName, size: size)
     }
 
     static func mono(_ size: CGFloat = 12, weight: Font.Weight = .regular) -> Font {

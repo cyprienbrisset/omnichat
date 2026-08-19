@@ -10,7 +10,13 @@ targets:
   OmniChat:
     type: application
     platform: macOS
-    sources: [OmniChat]
+    sources:
+      - path: OmniChat
+        excludes:
+          - "Resources/Fonts/**"
+      - path: OmniChat/Resources/Fonts
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: OmniRouteKit
     settings:
@@ -27,6 +33,7 @@ targets:
       properties:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        ATSApplicationFontsPath: Fonts
   OmniChatTests:
     type: bundle.unit-test
     platform: macOS

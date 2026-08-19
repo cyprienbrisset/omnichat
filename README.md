@@ -52,14 +52,21 @@ conception :
 ## Identité visuelle : l'atelier d'imprimerie
 
 OmniChat adopte une direction artistique distincte plutôt qu'une interface
-macOS générique : papier (`#f5efe2`/`#dcd5c6`), encre quasi noire, serif
+macOS générique : papier et encre calés sur la charte de marque (Ivoire
+Papier `#F7F4EE`, Noir Presse `#0E0E0E`, Or Mat `#C9A96E` en accent), serif
 (prose des réponses, titres) contrastée avec du monospace tracké en
 majuscules (labels, métadonnées), filets fins et une texture de hachures
 diagonales très discrète — un clin d'œil aux plaques d'imprimerie plutôt
 qu'aux bulles de chat classiques : une requête utilisateur se lit comme une
-citation en italique, une réponse comme un paragraphe de prose. Le thème
-est centralisé dans `OmniChat/Support/Theme.swift` (`OmniTheme`) et
-s'adapte clair/sombre comme avant.
+citation en italique, une réponse comme un paragraphe de prose. Le serif
+est [Spectral](https://github.com/googlefonts/spectral) (licence SIL Open
+Font, fichiers statiques embarqués dans `OmniChat/Resources/Fonts/` et
+enregistrés via `ATSApplicationFontsPath`) — Romie et Canela, les polices
+d'affichage utilisées pour le wordmark lui-même dans `docs/brand/`, sont
+des polices commerciales et ne sont pas embarquées. Le thème est
+centralisé dans `OmniChat/Support/Theme.swift` (`OmniTheme`, trois
+constantes de marque privées dont dérive toute la palette) et s'adapte
+clair/sombre comme avant.
 
 Le monogramme « OC » et l'identité de marque (Noir Presse `#0E0E0E`,
 Ivoire Papier `#F7F4EE`, Or Mat en accent `#C9A96E`) vivent dans
