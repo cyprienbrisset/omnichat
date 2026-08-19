@@ -57,7 +57,13 @@ est centralisé dans `OmniChat/Support/Theme.swift` (`OmniTheme`) et
 s'adapte clair/sombre comme avant.
 
 Ce traitement est appliqué à la fenêtre principale (conversation +
-sidebar), aux réglages/premier lancement et au menu bar. Chaque réponse
+sidebar), aux réglages/premier lancement et au menu bar. Le registre des
+conversations (colonne du milieu, 300pt) ne s'affiche que face à une
+conversation : Galerie, Mémoire, MCP, Recherche locale, Comparaison et
+Administration gèrent chacun leur propre contenu de bout en bout et n'ont
+rien à voir avec le choix d'une conversation — ils prennent donc toute la
+largeur restante plutôt que de partager l'écran avec une liste sans
+rapport. Chaque réponse
 affiche, quand OmniRoute les fournit, sa trace de routage et son coût réels
 (stratégie/fournisseur, latence, tokens, coût, cache) — lus depuis les
 en-têtes `X-OmniRoute-*` de la réponse, jamais recalculés ni fabriqués : si

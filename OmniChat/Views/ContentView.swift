@@ -67,10 +67,17 @@ struct ContentView: View {
                 onSelectComparison: { detailOverlay = .comparison },
                 onSelectAdmin: { detailOverlay = .admin }
             )
-            registerPanel
-                .frame(width: 300)
+            // The conversation register only makes sense alongside an actual
+            // conversation — every other detail screen (Galerie, Mémoire,
+            // MCP, Recherche locale, Comparaison, Administration) manages
+            // its own content end to end and has nothing to do with picking
+            // a conversation, so it gets the full width instead.
+            if detailOverlay == nil {
+                registerPanel
+                    .frame(width: 300)
 
-            Rectangle().fill(OmniTheme.hairline).frame(width: 1)
+                Rectangle().fill(OmniTheme.hairline).frame(width: 1)
+            }
 
             Group {
                 switch detailOverlay {
