@@ -166,6 +166,21 @@ sur ce `404` précis, ainsi qu'un `401`/`403` — toute autre erreur (quota,
 budget, politique de contenu) est réelle et remonte immédiatement, sans
 nouvelle tentative inutile qui la masquerait.
 
+**Agrandir/lire et télécharger un média généré :** chaque média (fil de
+conversation ou Galerie) affiche désormais un chip discret en coin avec
+deux actions réelles — « Agrandir » ouvre `MediaDetailView` (le même
+fichier réel en plus grand : image redimensionnée, `VideoPlayer` pour
+vidéo/musique/voix), « Télécharger » ouvre un vrai panneau d'enregistrement
+macOS (`NSSavePanel`) pour copier le fichier déjà téléchargé localement
+(`~/Library/Application Support/OmniChat/Media/`) vers l'emplacement de
+son choix — ce n'est pas un second téléchargement réseau, juste une copie
+locale vers un endroit que l'utilisateur contrôle. Une image est en plus
+cliquable n'importe où sur sa surface pour l'agrandir (elle n'a aucun
+contrôle natif avec lequel un geste de tap pourrait entrer en conflit,
+contrairement à `VideoPlayer` qui garde ses propres contrôles de lecture
+intacts). Le chip ne s'affiche pas si le fichier réel est introuvable —
+jamais de bouton menant à une action qui échouerait silencieusement.
+
 **Correctif confirmé via le journal de diagnostic réel d'un utilisateur**
 (`~/Library/Application Support/OmniChat/diagnostics.json`) : la
 génération échouait malgré des fournisseurs bien configurés et un quota
