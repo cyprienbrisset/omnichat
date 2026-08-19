@@ -285,3 +285,64 @@ public struct ACPAgentsResponse: Decodable, Sendable, Equatable {
 func parseACPAgentsResponse(_ data: Data) throws -> ACPAgentsResponse {
     try JSONDecoder().decode(ACPAgentsResponse.self, from: data)
 }
+
+// MARK: - Model latency stats (shape confirmed via a real authenticated
+// response against a live server — GET /api/usage/model-latency-stats)
+
+/// One provider/model route's rolling-window latency and success stats.
+/// Real example: `{"provider":"gemini","model":"gemini-3.5-flash",
+/// "key":"gemini/gemini-3.5-flash","totalRequests":2,
+/// "successfulRequests":1,"successRate":0.5,"avgLatencyMs":12865,
+/// "p50LatencyMs":12865,"p95LatencyMs":12865,"p99LatencyMs":12865,
+/// "latencyStdDev":0,"windowHours":24,"avgTtftMs":12865,
+/// "avgE2ELatencyMs":12865,"avgTokensPerSecond":173.49}`.
+public struct ModelLatencyEntry: Codable, Sendable, Equatable, Identifiable {
+    public var id: String { key }
+    public let provider: String
+    public let model: String
+    public let key: String
+    public let totalRequests: Int
+    public let successfulRequests: Int
+    public let successRate: Double
+    public let avgLatencyMs: Double
+    public let p50LatencyMs: Double
+    public let p95LatencyMs: Double
+    public let p99LatencyMs: Double
+    public let latencyStdDev: Double
+    public let windowHours: Int
+    public let avgTtftMs: Double
+    public let avgE2ELatencyMs: Double
+    public let avgTokensPerSecond: Double
+}
+
+public struct ModelLatencyStatsResponse: Codable, Sendable, Equatable {
+    public let entries: [ModelLatencyEntry]
+    public let windowHours: Int
+    public let generatedAt: String
+}
+
+func parseModelLatencyStatsResponse(_ data: Data) throws -> ModelLatencyStatsResponse {
+    try JSONDecoder().decode(ModelLatencyStatsResponse.self, from: data)
+}
+
+// MARK: - Model cooldowns / failovers (envelope confirmed via a real
+// authenticated response — GET /api/resilience/model-cooldowns returned
+// `{"items":[]}` with no active cooldown to see a populated item's exact
+// shape, so individual entries stay a raw snapshot rather than typed
+// fields guessed without a real example.)
+
+public struct ModelCooldownsResponse: Sendable, Equatable {
+    public let items: [AdminRawSnapshot]
+}
+
+func parseModelCooldownsResponse(_ data: Data) throws -> ModelCooldownsResponse {
+    guard case .object(let fields) = try JSONDecoder().decode(JSONValue.self, from: data),
+          case .array(let values)? = fields["items"] else {
+        throw AdminResponseParsingError.unrecognizedShape
+    }
+    let items = try values.map { value -> AdminRawSnapshot in
+        guard case .object(let itemFields) = value else { throw AdminResponseParsingError.unrecognizedShape }
+        return AdminRawSnapshot(fields: itemFields)
+    }
+    return ModelCooldownsResponse(items: items)
+}

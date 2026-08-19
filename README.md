@@ -59,7 +59,7 @@ derrière une API compatible OpenAI.
 | **Comparaison** | Un même prompt envoyé à N modèles, réponses indépendantes côte à côte |
 | **Fusion** | N modèles sources + synthèse par un modèle juge (auto ou choisi), persistance dédiée |
 | **Administration** | Panneau à 8 pages (fournisseurs & clés, santé, agents, garde-fous, réseau, analytique & coûts) — quota restant par fournisseur, visible uniquement si la clé a les droits de gestion |
-| **Bulletin menu bar** | Santé des fournisseurs et dernière réponse routée, sans quitter la barre de menu |
+| **Bulletin menu bar** | Santé des fournisseurs, quota global, requêtes/succès/P50, dernière bascule et dernière réponse routée — sans quitter la barre de menu |
 
 Détail complet et décisions de conception : [docs/DEVLOG.md](docs/DEVLOG.md).
 Périmètre complet et architecture cible :

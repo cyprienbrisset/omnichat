@@ -21,6 +21,21 @@ struct CatalogSummary: Equatable {
     let providerCount: Int
 }
 
+/// A client-side aggregate over `GET /api/usage/model-latency-stats`'s real
+/// per-provider/model entries — the server exposes latency/success stats
+/// per route, not a single global figure, so this rolls them up: total
+/// requests observed, the overall (request-weighted) success rate, and a
+/// request-weighted average of each route's own p50 latency. That last one
+/// is explicitly an approximation of a "global P50" (a weighted mean of
+/// per-route p50s, not a true percentile over every individual request) —
+/// documented here so it's never mistaken for a server-reported figure.
+struct BulletinHealthSummary: Equatable {
+    let totalRequests: Int
+    let successRate: Double
+    let weightedP50Ms: Double
+    let windowHours: Int
+}
+
 @Observable
 final class AppEnvironment {
     var activeProfile: EndpointProfile
@@ -38,6 +53,13 @@ final class AppEnvironment {
     /// lacks management scope, or that key simply has no global-scope limit
     /// configured — never a fabricated bar.
     private(set) var globalQuota: TokenLimitEntry?
+    private(set) var bulletinHealthSummary: BulletinHealthSummary?
+    /// The most recent model cooldown/failover, if any is currently active.
+    /// `GET /api/resilience/model-cooldowns` returned `{"items":[]}` in
+    /// testing (no populated example seen), so an individual item's real
+    /// field names aren't confirmed — shown as a raw snapshot rather than
+    /// typed fields guessed without an example.
+    private(set) var lastModelCooldown: AdminRawSnapshot?
     /// Media kinds this server actually has at least one real model for —
     /// starts empty (nothing shown) rather than assuming availability, so
     /// the composer never offers a generation mode that's guaranteed to
@@ -255,5 +277,32 @@ final class AppEnvironment {
         let client = OmniRouteClient(profile: activeProfile, credentialStore: credentialStore)
         let limits = try? await client.listTokenLimits(apiKeyId: apiKeyID)
         globalQuota = limits?.first { $0.scopeType == "global" }
+    }
+
+    /// Real requests/success-rate/latency aggregate + last cooldown for the
+    /// menu bar bulletin — see `BulletinHealthSummary`'s doc comment for how
+    /// the single "global P50" figure is derived from real per-route data.
+    @MainActor
+    func refreshBulletinHealthSummary() async {
+        guard managementAccessState == .available else {
+            bulletinHealthSummary = nil
+            lastModelCooldown = nil
+            return
+        }
+        let client = OmniRouteClient(profile: activeProfile, credentialStore: credentialStore)
+        if let response = try? await client.fetchModelLatencyStats(), !response.entries.isEmpty {
+            let totalRequests = response.entries.reduce(0) { $0 + $1.totalRequests }
+            let totalSuccessful = response.entries.reduce(0) { $0 + $1.successfulRequests }
+            let weightedP50Sum = response.entries.reduce(0.0) { $0 + $1.p50LatencyMs * Double($1.totalRequests) }
+            bulletinHealthSummary = BulletinHealthSummary(
+                totalRequests: totalRequests,
+                successRate: totalRequests > 0 ? Double(totalSuccessful) / Double(totalRequests) : 0,
+                weightedP50Ms: totalRequests > 0 ? weightedP50Sum / Double(totalRequests) : 0,
+                windowHours: response.windowHours
+            )
+        } else {
+            bulletinHealthSummary = nil
+        }
+        lastModelCooldown = (try? await client.fetchModelCooldowns())?.items.first
     }
 }

@@ -114,12 +114,17 @@ extension OmniRouteClient {
         try await adminGET(path: "api/settings/ip-filter", parse: parseAdminRawSnapshot)
     }
 
-    // MARK: Latency analytics (undocumented exact shape — raw snapshot list;
-    // the API reference only describes the aggregate fields in prose:
-    // avg/p50/p95/p99 latency + success rate per provider/model)
+    // MARK: Latency & success analytics (shape confirmed via a real
+    // authenticated response against a live server, not guessed) + model
+    // cooldowns / failovers (envelope confirmed real; per-item fields stay
+    // a raw snapshot — no populated example was seen to confirm those)
 
-    public func listModelLatencyStats() async throws -> [AdminRawSnapshot] {
-        try await adminGET(path: "api/usage/model-latency-stats", parse: parseAdminRawSnapshotList)
+    public func fetchModelLatencyStats() async throws -> ModelLatencyStatsResponse {
+        try await adminGET(path: "api/usage/model-latency-stats", parse: parseModelLatencyStatsResponse)
+    }
+
+    public func fetchModelCooldowns() async throws -> ModelCooldownsResponse {
+        try await adminGET(path: "api/resilience/model-cooldowns", parse: parseModelCooldownsResponse)
     }
 
     // MARK: Rate limits (undocumented shape — raw snapshot, like Providers)

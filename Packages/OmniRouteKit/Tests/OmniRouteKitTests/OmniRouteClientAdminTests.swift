@@ -300,21 +300,50 @@ final class OmniRouteClientAdminTests: XCTestCase {
         XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/api/settings/ip-filter"))
     }
 
-    func test_listModelLatencyStats_success_parsesRawSnapshotListFromCorrectPath() async throws {
+    func test_fetchModelLatencyStats_success_parsesRealShapeFromCorrectPath() async throws {
         let profile = EndpointProfile(id: UUID(), name: "Test", baseURL: URL(string: "https://omniroute.online/v1")!)
         let store = InMemoryCredentialStore()
         var capturedURL: URL?
         MockURLProtocol.requestHandler = { request in
             capturedURL = request.url
-            let json = #"[{"provider":"openai","model":"gpt-4o","avgMs":312,"successRate":0.994}]"#
+            // Real shape, captured against a live OmniRoute instance.
+            let json = """
+            {"entries":[{"provider":"gemini","model":"gemini-3.5-flash","key":"gemini/gemini-3.5-flash",\
+            "totalRequests":2,"successfulRequests":1,"successRate":0.5,"avgLatencyMs":12865,\
+            "p50LatencyMs":12865,"p95LatencyMs":12865,"p99LatencyMs":12865,"latencyStdDev":0,\
+            "windowHours":24,"avgTtftMs":12865,"avgE2ELatencyMs":12865,"avgTokensPerSecond":173.49}],\
+            "windowHours":24,"generatedAt":"2026-08-19T11:12:42.876Z"}
+            """
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, Data(json.utf8))
         }
         let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
 
-        let stats = try await client.listModelLatencyStats()
+        let stats = try await client.fetchModelLatencyStats()
 
-        XCTAssertEqual(stats.first?.fields["avgMs"], .number(312))
+        XCTAssertEqual(stats.entries.first?.key, "gemini/gemini-3.5-flash")
+        XCTAssertEqual(stats.entries.first?.totalRequests, 2)
+        XCTAssertEqual(stats.entries.first?.p50LatencyMs, 12865)
+        XCTAssertEqual(stats.windowHours, 24)
         XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/api/usage/model-latency-stats"))
+    }
+
+    func test_fetchModelCooldowns_emptyItems_parsesRealShapeFromCorrectPath() async throws {
+        let profile = EndpointProfile(id: UUID(), name: "Test", baseURL: URL(string: "https://omniroute.online/v1")!)
+        let store = InMemoryCredentialStore()
+        var capturedURL: URL?
+        MockURLProtocol.requestHandler = { request in
+            capturedURL = request.url
+            // Real shape, captured against a live OmniRoute instance (no
+            // active cooldown at capture time).
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(#"{"items":[]}"#.utf8))
+        }
+        let client = OmniRouteClient(profile: profile, credentialStore: store, session: makeMockSession())
+
+        let cooldowns = try await client.fetchModelCooldowns()
+
+        XCTAssertTrue(cooldowns.items.isEmpty)
+        XCTAssertEqual(capturedURL, URL(string: "https://omniroute.online/api/resilience/model-cooldowns"))
     }
 }

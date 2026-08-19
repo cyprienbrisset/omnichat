@@ -544,11 +544,13 @@ private struct QuotasSectionView: View {
     }
 }
 
-// MARK: - Latency & success-rate analytics (undocumented exact field names)
+// MARK: - Latency & success-rate analytics (shape confirmed via a real
+// authenticated response against a live server)
 
 private struct LatencyStatsSectionView: View {
     @Environment(AppEnvironment.self) private var appEnvironment
-    @State private var stats: [AdminRawSnapshot] = []
+    @State private var stats: [ModelLatencyEntry] = []
+    @State private var windowHours: Int?
     @State private var loadState: LoadState = .loading
 
     private enum LoadState: Equatable { case loading, loaded, failed(String) }
@@ -557,7 +559,7 @@ private struct LatencyStatsSectionView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
                 OmniTheme.label("Latence & succès par fournisseur/modèle", size: 9, color: OmniTheme.inkSoft)
-                Text("GET /api/usage/model-latency-stats — moyenne/p50/p95/p99 et taux de succès, agrégés sur une fenêtre glissante. Champs exacts non documentés, affichés tels quels.")
+                Text("GET /api/usage/model-latency-stats" + (windowHours.map { " — fenêtre glissante de \($0) h." } ?? "."))
                     .font(OmniTheme.serif(11).italic())
                     .foregroundStyle(OmniTheme.inkSoft)
             }
@@ -583,21 +585,43 @@ private struct LatencyStatsSectionView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(stats) { entry in
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(entry.id)
-                                    .font(OmniTheme.mono(10, weight: .semibold))
-                                    .foregroundStyle(OmniTheme.ink)
-                                RawFieldRows(entries: entry.sortedEntries)
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            latencyRow(entry)
                             Rectangle().fill(OmniTheme.hairline).frame(height: 1)
                         }
                     }
                 }
             }
         }
+    }
+
+    private func latencyRow(_ entry: ModelLatencyEntry) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(entry.key)
+                .font(OmniTheme.mono(10, weight: .semibold))
+                .foregroundStyle(OmniTheme.ink)
+            HStack(spacing: 14) {
+                Text("\(entry.successfulRequests)/\(entry.totalRequests) requêtes")
+                    .font(OmniTheme.mono(9))
+                    .foregroundStyle(OmniTheme.inkSoft)
+                Text("\(Int(entry.successRate * 100))% succès")
+                    .font(OmniTheme.mono(9))
+                    .foregroundStyle(entry.successRate >= 0.8 ? OmniTheme.success : (entry.successRate >= 0.4 ? OmniTheme.warning : OmniTheme.danger))
+                Text("P50 \(Int(entry.p50LatencyMs)) ms")
+                    .font(OmniTheme.mono(9))
+                    .foregroundStyle(OmniTheme.inkSoft)
+                Text("P95 \(Int(entry.p95LatencyMs)) ms")
+                    .font(OmniTheme.mono(9))
+                    .foregroundStyle(OmniTheme.inkSoft)
+                if entry.avgTokensPerSecond > 0 {
+                    Text("\(String(format: "%.1f", entry.avgTokensPerSecond)) jetons/s")
+                        .font(OmniTheme.mono(9))
+                        .foregroundStyle(OmniTheme.inkSoft)
+                }
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func centeredMessage(_ text: String) -> some View {
@@ -613,7 +637,9 @@ private struct LatencyStatsSectionView: View {
         loadState = .loading
         let client = OmniRouteClient(profile: appEnvironment.activeProfile, credentialStore: appEnvironment.credentialStore)
         do {
-            stats = try await client.listModelLatencyStats()
+            let response = try await client.fetchModelLatencyStats()
+            stats = response.entries
+            windowHours = response.windowHours
             loadState = .loaded
         } catch let error as OmniRouteError {
             loadState = .failed(error.userMessage)

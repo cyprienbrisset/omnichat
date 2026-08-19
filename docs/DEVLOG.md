@@ -411,12 +411,9 @@ ce n'est pas encore le cas :
 ## Bulletin de la menu bar
 
 Ouvre-le en cliquant l'icône de la menu bar. Reprend le mockup 2f
-(bulletin passerelle : quota, santé, dernière bascule) avec une décision
-de scope explicite : pas de champ inventé contre des endpoints non
-documentés (`/api/usage/model-latency-stats`, `/api/resilience/
-model-cooldowns` — testés en direct, 401 sans forme de champs révélée,
-et cet environnement n'a pas de vraie clé de gestion pour aller plus
-loin). Le bulletin affiche donc uniquement des données déjà sûres :
+(bulletin passerelle : quota, santé, dernière bascule) — chaque section
+est gardée par une vraie donnée confirmée, absente plutôt que fabriquée
+tant que cette donnée n'existe pas :
 
 - **Fournisseurs actifs** — `appEnvironment.monitoringHealth` déjà chargé
   au lancement (`actifs / catalogue`, barre de progression réelle) — pas
@@ -429,6 +426,28 @@ loin). Le bulletin affiche donc uniquement des données déjà sûres :
   Analytique › Limites & quotas — une fois chargé avec succès là-bas,
   `AppEnvironment.rememberQuotaAPIKeyID` le persiste (par profil) et le
   bulletin le réutilise directement, sans jamais redemander.
+- **Requêtes / succès / P50** — `GET /api/usage/model-latency-stats`,
+  dont la forme réelle a été confirmée en direct contre un serveur
+  authentifié (`entries: [{provider, model, key, totalRequests,
+  successfulRequests, successRate, avgLatencyMs, p50LatencyMs,
+  p95LatencyMs, p99LatencyMs, ...}], windowHours, generatedAt}`). Le
+  serveur expose ces stats **par route** (fournisseur/modèle), jamais un
+  chiffre global unique — `AppEnvironment.BulletinHealthSummary` agrège
+  donc côté client : somme des requêtes, taux de succès pondéré, et un
+  « P50 » qui est une moyenne pondérée par volume des p50 de chaque
+  route (documenté explicitement comme une approximation cliente, pas un
+  percentile serveur réel sur chaque requête individuelle). Administration
+  › Analytique › Latence & succès affiche en plus le détail réel par
+  route (`AdminAnalyticsView.LatencyStatsSectionView`), typé
+  (`ModelLatencyEntry`) plutôt qu'en snapshot brut maintenant que la forme
+  est confirmée.
+- **Dernière bascule** — `GET /api/resilience/model-cooldowns`, enveloppe
+  confirmée réelle (`{"items": [...]}`), mais aucun exemple peuplé vu en
+  test (le serveur avait `items: []` au moment de la capture) — la forme
+  exacte d'une entrée reste donc un snapshot brut (`AdminRawSnapshot`,
+  `ModelCooldownsResponse`) plutôt que des champs typés devinés sans
+  exemple réel. La section n'apparaît que si une bascule est
+  effectivement en cours.
 - **Dernière réponse routée** — pas tirée d'un endpoint d'analytique
   serveur, mais de la télémétrie qu'OmniChat capture déjà lui-même sur
   chaque message (`routingStrategy`/`routingProvider`/`routingLatencyMs`,
@@ -437,11 +456,6 @@ loin). Le bulletin affiche donc uniquement des données déjà sûres :
   télémétrie et affiche « stratégie → fournisseur · latence », en relatif
   dans le temps. Absent plutôt que fabriqué si rien n'a encore de
   télémétrie.
-
-Un futur passage pourra ajouter les vraies statistiques serveur (sains/
-succès/P50, dernière bascule détectée côté OmniRoute) si quelqu'un colle
-une réponse authentifiée réelle de ces deux endpoints — même discipline
-que le reste de l'app : jamais deviner un nom de champ.
 
 ## Identité visuelle
 

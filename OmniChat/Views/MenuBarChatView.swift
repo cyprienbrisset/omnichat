@@ -3,14 +3,15 @@ import SwiftData
 import AppKit
 import OmniRouteKit
 
-/// A quick, real bulletin instead of a decorative popover — deliberately
-/// built only from data this app can actually confirm, per an explicit
-/// scoping decision: no fabricated "quota"/"success rate"/"P50" fields
-/// against undocumented endpoints this environment has no real management
-/// key to verify. So it shows real provider-health counts (already fetched
-/// at launch) and a real "last routed reply" pulled from telemetry this
-/// app already captured on its own messages — not a guess at what
-/// OmniRoute's own analytics endpoints return.
+/// A quick, real bulletin instead of a decorative popover — every section
+/// is gated on real, confirmed data: provider-health counts (fetched at
+/// launch), a global token quota once its apiKeyId is on file (see
+/// `AppEnvironment.globalQuota`), a requests/success/P50 aggregate over
+/// `/api/usage/model-latency-stats`'s real per-route entries (see
+/// `BulletinHealthSummary`), the last model cooldown/failover if one is
+/// active, and a real "last routed reply" pulled from telemetry this app
+/// already captured on its own messages. Any section stays absent — never
+/// fabricated — when its underlying data isn't available.
 struct MenuBarChatView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.modelContext) private var context
@@ -31,7 +32,15 @@ struct MenuBarChatView: View {
                 quotaSection(globalQuota)
             }
 
+            if let summary = appEnvironment.bulletinHealthSummary {
+                healthSummarySection(summary)
+            }
+
             lastActivitySection
+
+            if let cooldown = appEnvironment.lastModelCooldown {
+                cooldownSection(cooldown)
+            }
 
             Rectangle().fill(OmniTheme.hairline).frame(height: 1)
 
@@ -53,6 +62,7 @@ struct MenuBarChatView: View {
         .task {
             loadLastRoutedMessage()
             await appEnvironment.refreshGlobalQuota()
+            await appEnvironment.refreshBulletinHealthSummary()
         }
     }
 
@@ -138,6 +148,46 @@ struct MenuBarChatView: View {
                     .font(OmniTheme.serif(13, weight: .semibold))
                     .foregroundStyle(OmniTheme.ink)
             }
+        }
+    }
+
+    /// Real requests/success/P50 aggregate — see
+    /// `AppEnvironment.BulletinHealthSummary`'s doc comment for exactly how
+    /// this is computed from `GET /api/usage/model-latency-stats`'s real
+    /// per-route entries (P50 here is a request-weighted mean of each
+    /// route's own p50, not a server-reported global percentile).
+    private func healthSummarySection(_ summary: BulletinHealthSummary) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            OmniTheme.label("Requêtes (\(summary.windowHours) h)", size: 9, color: OmniTheme.inkSoft)
+            HStack(spacing: 16) {
+                statColumn(String(summary.totalRequests), label: "requêtes")
+                statColumn(
+                    "\(Int(summary.successRate * 100))%",
+                    label: "succès",
+                    color: summary.successRate >= 0.8 ? OmniTheme.success : (summary.successRate >= 0.4 ? OmniTheme.warning : OmniTheme.danger)
+                )
+                statColumn("\(Int(summary.weightedP50Ms)) ms", label: "P50")
+            }
+        }
+    }
+
+    private func statColumn(_ value: String, label: String, color: Color = OmniTheme.ink) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(value)
+                .font(OmniTheme.serif(15, weight: .semibold))
+                .foregroundStyle(color)
+            Text(label)
+                .font(OmniTheme.mono(8))
+                .foregroundStyle(OmniTheme.inkSoft)
+        }
+    }
+
+    /// Real but shape-unconfirmed — see `AppEnvironment.lastModelCooldown`'s
+    /// doc comment. Shown as raw fields rather than guessed labels.
+    private func cooldownSection(_ cooldown: AdminRawSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            OmniTheme.label("Dernière bascule", size: 9, color: OmniTheme.inkSoft)
+            RawFieldRows(entries: cooldown.sortedEntries)
         }
     }
 
