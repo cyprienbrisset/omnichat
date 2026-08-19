@@ -510,12 +510,14 @@ que le reste de l'app : jamais deviner un nom de champ.
 
 - **OmniChat** (ce dépôt) — l'app macOS native.
 - **Omni Code** — dépôt séparé (`../OmniCode` en local), CLI de
-  développement type Claude Code propulsée par OmniRoute. Réutilise
-  `OmniRouteKit` en dépendance de chemin local (les deux dépôts doivent
-  être clonés côte à côte pour l'instant — pas encore de vraie
-  distribution). v1 : REPL interactif, outils réels (`read_file`,
-  `write_file`, `run_shell_command` avec confirmation, `search`), boucle
-  d'appel d'outils reprise du mécanisme déjà prouvé dans
+  développement type Claude Code propulsée par OmniRoute. En Node.js/
+  TypeScript (décision explicite : le vrai Claude Code est lui-même en
+  TypeScript/Node) — pas de dépendance à `OmniRouteKit`, chaque projet
+  parle directement au même vrai serveur OmniRoute dans son propre
+  langage. v1 : REPL interactif, outils réels (`read_file`, `write_file`,
+  `run_shell_command` avec confirmation, `search`), boucle d'appel
+  d'outils qui exécute tous les appels d'un même round, sur le même
+  mécanisme (fragments `tool_calls` streamés) déjà prouvé dans
   `ChatViewModel.send()`.
 
 ## Build & lancement
