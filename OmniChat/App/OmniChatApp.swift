@@ -45,6 +45,7 @@ struct OmniChatApp: App {
                 .preferredColorScheme(appEnvironment.themePreference.colorScheme)
         }
         .modelContainer(modelContainer)
+        .menuBarExtraStyle(.window)
 
         Settings {
             SettingsView()

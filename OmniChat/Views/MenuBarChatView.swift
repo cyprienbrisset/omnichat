@@ -58,7 +58,11 @@ struct MenuBarChatView: View {
         }
         .padding(16)
         .frame(width: 260)
-        .background(OmniTheme.paper)
+        // `.background(OmniTheme.paper)` alone left the system's translucent
+        // popover vibrancy material showing through — `ignoresSafeArea()`
+        // forces a fully opaque fill behind the whole window instead of just
+        // the SwiftUI-measured content bounds.
+        .background { OmniTheme.paper.ignoresSafeArea() }
         .task {
             loadLastRoutedMessage()
             await appEnvironment.refreshGlobalQuota()
