@@ -181,6 +181,29 @@ contrairement à `VideoPlayer` qui garde ses propres contrôles de lecture
 intacts). Le chip ne s'affiche pas si le fichier réel est introuvable —
 jamais de bouton menant à une action qui échouerait silencieusement.
 
+**Correctif d'un vrai bug de perte de média, confirmé en inspectant
+directement le store SwiftData réel d'un utilisateur :** deux générations
+d'image réussies dans la même conversation avaient bien écrit deux fichiers
+réels sur disque, mais une seule ligne `MediaItem` existait en base — les
+deux messages assistant pointaient vers la même ligne (celle de la
+deuxième génération), donc le premier message affichait la mauvaise image
+et le premier fichier devenait invisible partout, y compris dans la
+Galerie. Root cause : `Message.mediaItem` et `MediaItem.conversation`
+n'avaient jamais de relation SwiftData explicitement déclarée avec
+inverse (`@Relationship(inverse:)`), contrairement à `messages`/
+`searchPassages` sur `Conversation` — une relation to-one non appariée des
+deux côtés est une source connue de corruption lors des migrations de
+schéma automatiques de SwiftData (et cette app évolue vite : chaque
+nouvelle fonctionnalité ajoutant un modèle déclenche une migration sur le
+store existant). Les trois relations sont maintenant explicitement
+déclarées avec un vrai inverse et une règle de suppression en cascade
+(supprimer un message ou une conversation supprime proprement son
+`MediaItem`, plutôt que de le laisser orphelin). Un fichier déjà perdu
+avant ce correctif reste malheureusement introuvable dans l'app (sa ligne
+a été écrasée), mais le fichier brut lui-même reste sur disque dans
+`~/Library/Application Support/OmniChat/Media/` si besoin de le retrouver
+manuellement.
+
 **Correctif confirmé via le journal de diagnostic réel d'un utilisateur**
 (`~/Library/Application Support/OmniChat/diagnostics.json`) : la
 génération échouait malgré des fournisseurs bien configurés et un quota

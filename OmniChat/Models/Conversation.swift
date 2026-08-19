@@ -15,6 +15,11 @@ final class Conversation {
     var messages: [Message] = []
     @Relationship(deleteRule: .cascade, inverse: \SearchPassage.conversation)
     var searchPassages: [SearchPassage] = []
+    /// Was missing entirely — `MediaItem.conversation` had no declared
+    /// inverse anywhere, unlike every other relationship here. See
+    /// `Message.mediaItem` for the corruption this caused in practice.
+    @Relationship(deleteRule: .cascade, inverse: \MediaItem.conversation)
+    var mediaItems: [MediaItem] = []
 
     static let trashRetentionDays = 30
 

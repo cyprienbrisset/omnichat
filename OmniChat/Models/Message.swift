@@ -8,6 +8,14 @@ final class Message {
     var createdAt: Date
     var isIncomplete: Bool
     var conversation: Conversation?
+    /// Explicit inverse (unlike the bare property this used to be) —
+    /// without it, SwiftData had no declared relationship pairing for
+    /// `MediaItem`, and two successive media generations in the same
+    /// conversation could end up silently sharing a single persisted
+    /// `MediaItem` row instead of each getting their own (confirmed live:
+    /// two real generations, two real files on disk, but only one
+    /// `MediaItem` row in the store, referenced by both messages).
+    @Relationship(deleteRule: .cascade, inverse: \MediaItem.message)
     var mediaItem: MediaItem?
 
     // Telemetry parsed from OmniRoute's `X-OmniRoute-*` response headers, when

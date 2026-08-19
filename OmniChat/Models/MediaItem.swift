@@ -9,6 +9,9 @@ final class MediaItem {
     var fileName: String
     var createdAt: Date
     var conversation: Conversation?
+    /// Inverse side of `Message.mediaItem` — see that property for why an
+    /// explicit, paired relationship matters here.
+    var message: Message?
 
     init(kind: String, prompt: String, modelID: String, fileName: String, createdAt: Date = Date()) {
         self.kind = kind

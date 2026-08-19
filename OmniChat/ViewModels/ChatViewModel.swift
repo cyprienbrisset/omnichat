@@ -173,6 +173,7 @@ final class ChatViewModel {
             try context.save()
         } catch {
             persistenceError = "Impossible d'enregistrer la conversation : \(error.localizedDescription)"
+            context.rollback()
             return
         }
         persistenceError = nil
@@ -216,6 +217,7 @@ final class ChatViewModel {
             try context.save()
         } catch {
             persistenceError = "Impossible d'enregistrer le média : \(error.localizedDescription)"
+            context.rollback()
             return
         }
         persistenceError = nil
