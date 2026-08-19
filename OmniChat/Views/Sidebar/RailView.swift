@@ -9,6 +9,7 @@ struct RailView: View {
     let isMCPSelected: Bool
     let isRAGSelected: Bool
     let isComparisonSelected: Bool
+    let isFusionSelected: Bool
     let isAdminSelected: Bool
     /// Only true once the active key is confirmed to carry management
     /// scope — this entry point changes the connected server's real
@@ -22,6 +23,7 @@ struct RailView: View {
     let onSelectMCP: () -> Void
     let onSelectRAG: () -> Void
     let onSelectComparison: () -> Void
+    let onSelectFusion: () -> Void
     let onSelectAdmin: () -> Void
 
     var body: some View {
@@ -57,7 +59,7 @@ struct RailView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(
                             !isGallerySelected && !isMemorySelected && !isMCPSelected && !isRAGSelected
-                                && !isComparisonSelected && !isAdminSelected && mode == candidate
+                                && !isComparisonSelected && !isFusionSelected && !isAdminSelected && mode == candidate
                                 ? OmniTheme.accent : OmniTheme.railText.opacity(0.7)
                         )
                 }
@@ -104,6 +106,14 @@ struct RailView: View {
             }
             .buttonStyle(.plain)
             .help("Comparaison")
+
+            Button(action: onSelectFusion) {
+                Image(systemName: "arrow.triangle.merge")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isFusionSelected ? OmniTheme.accent : OmniTheme.railText.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+            .help("Fusion")
 
             if showsAdmin {
                 Button(action: onSelectAdmin) {

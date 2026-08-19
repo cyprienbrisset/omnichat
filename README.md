@@ -22,13 +22,15 @@ compatible OpenAI.
 > `tool_calls` OpenAI confirmés sur `/v1/chat/completions`, outils exécutés
 > par OmniChat lui-même — jamais via le serveur MCP d'OmniRoute, inaccessible
 > à distance), comparaison multi-modèles côte à côte (prompt unique, N flux
-> réels indépendants), retour possible au routage automatique (« auto »)
-> après sélection d'un modèle précis dans une conversation, panneau
-> Administration (fournisseurs, budgets, limites de jetons — visible
-> uniquement si la clé a les droits de gestion), menu bar + fenêtre
-> principale. RAG documentaire (import de fichiers), A2A, OCR, transcription
-> audio et gestion des combos/routage/compression ne sont pas encore
-> implémentés (voir le spec pour le périmètre complet).
+> réels indépendants), mode Fusion (N modèles sources + synthèse par un
+> juge auto ou choisi, persisté dans son propre store séparé des
+> conversations normales), retour possible au routage automatique
+> (« auto ») après sélection d'un modèle précis dans une conversation,
+> panneau Administration (fournisseurs, budgets, limites de jetons —
+> visible uniquement si la clé a les droits de gestion), menu bar +
+> fenêtre principale. RAG documentaire (import de fichiers), A2A, OCR,
+> transcription audio et gestion des combos de routage/compression ne
+> sont pas encore implémentés (voir le spec pour le périmètre complet).
 
 ## Ce que fait OmniChat
 
@@ -322,7 +324,42 @@ indépendamment sa propre réponse réelle (`streamChatCompletion`) et
 affiche ses propres jetons/coût/latence une fois reçus. Volontairement
 éphémère : rien n'est persisté comme conversation — changer d'écran perd
 les colonnes. Aucune notion de « combo » ou de juge ici, contrairement au
-mockup 3b (Fusion) : c'est une comparaison brute, pas une synthèse.
+mode Fusion (section suivante) : c'est une comparaison brute, pas une
+synthèse.
+
+## Fusion
+
+Icône dédiée du rail (à côté de Comparaison). Le même prompt part vers N
+modèles sources (ajoutés via le casier ⌘K, comme Comparaison), puis un
+modèle **juge** lit toutes les réponses réellement reçues et produit une
+synthèse unique — un vrai second appel `/v1/chat/completions`, pas une
+fusion côté client des textes. Il n'existe aucun endpoint OmniRoute dédié
+à la fusion : contrairement aux combos de routage (fallback automatique
+entre fournisseurs), c'est entièrement orchestré par OmniChat lui-même.
+
+Le juge peut être choisi explicitement (casier ⌘K, avec la ligne « auto »
+déjà utilisée pour le chat) ou laissé sur `"auto"`. Contrairement à la
+génération média, `/v1/chat/completions` accepte réellement `"auto"`
+côté serveur (confirmé en direct) — quand le juge est en auto, le vrai
+modèle qui a répondu est lu depuis la télémétrie de routage de la réponse
+(`X-OmniRoute-Decision`) et affiché à côté de la réponse fusionnée
+(`auto → openai/gpt-4o`, par exemple), jamais juste « auto ».
+
+Un modèle source qui échoue n'annule pas la fusion : seules les réponses
+réellement reçues nourrissent le juge ; le round échoue explicitement
+uniquement si **aucune** source n'a répondu (rien à fusionner). Les N
+réponses sources restent consultables, repliées sous la réponse fusionnée
+(bouton « Voir les réponses sources ») — la synthèse reste vérifiable
+contre ce qui l'a réellement nourrie.
+
+**Persistance délibérément séparée des conversations normales** (demande
+explicite) : les sessions de Fusion vivent dans leur propre store SwiftData
+(`FusionSession`/`FusionRound`/`FusionSourceResponse`), avec leur propre
+liste dans l'écran Fusion — jamais mélangées à la liste de conversations
+normale, puisqu'une réponse fusionnée n'est pas la réponse d'un seul
+modèle. Seules les réponses sources qui ont réellement répondu sont
+enregistrées dans un round persisté (un échec de source ne produit pas de
+« réponse source » fictive).
 
 ## Administration (paramétrage OmniRoute via l'API de gestion)
 

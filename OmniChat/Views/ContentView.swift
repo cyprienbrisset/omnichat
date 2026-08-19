@@ -8,6 +8,7 @@ private enum DetailOverlay {
     case rag
     case comparison
     case admin
+    case fusion
 }
 
 struct ContentView: View {
@@ -56,6 +57,7 @@ struct ContentView: View {
                 isMCPSelected: detailOverlay == .mcp,
                 isRAGSelected: detailOverlay == .rag,
                 isComparisonSelected: detailOverlay == .comparison,
+                isFusionSelected: detailOverlay == .fusion,
                 isAdminSelected: detailOverlay == .admin,
                 showsAdmin: appEnvironment.managementAccessState == .available,
                 catalogSummary: appEnvironment.catalogSummary,
@@ -65,6 +67,7 @@ struct ContentView: View {
                 onSelectMCP: { detailOverlay = .mcp },
                 onSelectRAG: { detailOverlay = .rag },
                 onSelectComparison: { detailOverlay = .comparison },
+                onSelectFusion: { detailOverlay = .fusion },
                 onSelectAdmin: { detailOverlay = .admin }
             )
             // The conversation register only makes sense alongside an actual
@@ -91,6 +94,8 @@ struct ContentView: View {
                     RAGView()
                 case .comparison:
                     ComparisonView()
+                case .fusion:
+                    FusionView()
                 case .admin:
                     AdminView()
                 case nil:
