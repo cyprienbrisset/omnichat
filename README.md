@@ -2,7 +2,7 @@
 
 <img src="docs/brand/omnichat-banner-dark.png" alt="OmniChat" width="420" />
 
-**Client macOS natif pour [OmniRoute](https://github.com/diegosouzapw/OmniRoute)
+**Client macOS natif pour [OmniRoute](https://github.com/diegosouzapw/OmniRoute)**
 Chat multi-modèles, génération média, mémoire, MCP, RAG, comparaison et fusion de réponses.
 
 [![Platform](https://img.shields.io/badge/plateforme-macOS%2026%2B-0E0E0E?style=flat-square)](#build--lancement)
