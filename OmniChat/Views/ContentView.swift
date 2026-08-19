@@ -352,6 +352,7 @@ struct ContentView: View {
         if selectedConversation?.persistentModelID == conversation.persistentModelID {
             selectedConversation = nil
         }
+        appEnvironment.discardChatViewModel(for: conversation)
         context.delete(conversation)
         saveOrReportError()
     }
@@ -374,6 +375,7 @@ struct ContentView: View {
         }
         guard !expired.isEmpty else { return }
         for conversation in expired {
+            appEnvironment.discardChatViewModel(for: conversation)
             context.delete(conversation)
         }
         saveOrReportError()

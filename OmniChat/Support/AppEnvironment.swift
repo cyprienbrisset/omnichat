@@ -39,6 +39,50 @@ final class AppEnvironment {
     /// `ChatView` right after it reads them into the request.
     var pendingAttachedContext: [String] = []
 
+    /// Keyed by conversation + active profile so switching servers still
+    /// gets a fresh client. `ChatView` recreates its own `@State` on every
+    /// conversation switch, but without this cache it also recreated
+    /// `ChatViewModel` itself — orphaning an in-flight media generation's
+    /// `isStreaming`/`lastAttemptKind` tracking. Navigating away mid-
+    /// generation and back then showed the wrong loading indicator (or
+    /// none at all), because the replacement view model never knew a
+    /// request was running, even though the request itself kept going in
+    /// the background and would still land correctly once it finished.
+    private var chatViewModels: [String: ChatViewModel] = [:]
+
+    private func chatViewModelCacheKey(for conversation: Conversation) -> String {
+        "\(conversation.persistentModelID)-\(activeProfile.baseURL.absoluteString)"
+    }
+
+    @MainActor
+    func chatViewModel(for conversation: Conversation, context: ModelContext) -> ChatViewModel {
+        let key = chatViewModelCacheKey(for: conversation)
+        if let existing = chatViewModels[key] {
+            return existing
+        }
+        let client = OmniRouteClient(profile: activeProfile, credentialStore: credentialStore)
+        let viewModel = ChatViewModel(
+            conversation: conversation,
+            client: client,
+            mediaClient: client,
+            mediaFileStore: MediaFileStore(),
+            context: context,
+            diagnosticLogger: diagnosticLogger,
+            endpointName: activeProfile.name,
+            localTools: [SearchLocalHistoryTool(client: client, context: context)]
+        )
+        chatViewModels[key] = viewModel
+        return viewModel
+    }
+
+    /// Drops a conversation's cached view model — call when the conversation
+    /// itself is permanently deleted, so nothing keeps a stale reference to
+    /// a row no longer in the store.
+    func discardChatViewModel(for conversation: Conversation) {
+        let prefix = "\(conversation.persistentModelID)-"
+        chatViewModels = chatViewModels.filter { !$0.key.hasPrefix(prefix) }
+    }
+
     var themePreference: ThemePreference {
         didSet {
             UserDefaults.standard.set(themePreference.rawValue, forKey: Self.themePreferenceKey)

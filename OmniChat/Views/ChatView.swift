@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import OmniRouteKit
 
 struct ChatView: View {
     let conversation: Conversation
@@ -69,17 +68,7 @@ struct ChatView: View {
         }
         .background(OmniTheme.paper)
         .task(id: "\(conversation.persistentModelID)-\(appEnvironment.activeProfile.baseURL.absoluteString)") {
-            let client = OmniRouteClient(profile: appEnvironment.activeProfile, credentialStore: appEnvironment.credentialStore)
-            viewModel = ChatViewModel(
-                conversation: conversation,
-                client: client,
-                mediaClient: client,
-                mediaFileStore: MediaFileStore(),
-                context: context,
-                diagnosticLogger: appEnvironment.diagnosticLogger,
-                endpointName: appEnvironment.activeProfile.name,
-                localTools: [SearchLocalHistoryTool(client: client, context: context)]
-            )
+            viewModel = appEnvironment.chatViewModel(for: conversation, context: context)
         }
         .navigationTitle(conversation.title)
         .sheet(isPresented: $showingModelPicker) {

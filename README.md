@@ -97,6 +97,21 @@ maintenant en entier en dessous d'un certain seuil, et au-delà propose un
 vrai bouton « Afficher tout / Réduire » — jamais de donnée perdue en
 silence.
 
+**Correctif indicateur de génération après changement de conversation :**
+`ChatView` recrée son `@State` (dont le `ChatViewModel`) à chaque
+changement de conversation — y compris en revenant sur celle qu'on vient
+de quitter — via `.task(id:)`. Une génération média lancée puis laissée en
+arrière-plan pendant qu'on change de conversation continue réellement côté
+réseau (elle finit par écrire le bon `MediaItem`), mais l'ancien
+`ChatViewModel` qui suivait son `isStreaming`/`lastAttemptKind` était
+remplacé par une instance neuve en revenant sur la conversation — l'app
+affichait alors le mauvais indicateur (l'animation « Rédaction en cours… »
+générique au lieu du squelette du bon type de média, voire rien) le temps
+que la génération se termine. `AppEnvironment` garde désormais un
+`ChatViewModel` par (conversation, profil actif) et le réutilise plutôt
+que d'en recréer un à chaque passage — la génération en cours reste
+suivie par la même instance, peu importe la navigation entre-temps.
+
 ## Génération média
 
 Le composeur de la fenêtre principale bascule entre Texte/Image/Vidéo/
