@@ -234,26 +234,35 @@ final class ChatViewModel {
     /// paper over. Confirmed live again: this isn't a single bad entry —
     /// on one real server, the *entire* Fireworks block (5 consecutive
     /// catalog entries) 404s the same way, followed by a Gemini entry that
-    /// 404s for an unrelated upstream reason. So this tries a generous
+    /// 404s for an unrelated upstream reason. Confirmed live a third time,
+    /// via a real user's own diagnostics log: the same "listed but broken"
+    /// pattern also shows up as 401/403, not just 404 — a candidate whose
+    /// *provider-specific* key is invalid or lacks rights for this media
+    /// type, even while other providers further down the catalog are
+    /// correctly configured with active quota. So this tries a generous
     /// number of real candidates in order and only moves to the next on
-    /// that exact 404 shape; any other error (auth, budget, rate limit,
-    /// content policy) is real and surfaces immediately rather than
-    /// masking it behind a pointless retry.
+    /// those two exact "this candidate isn't usable" shapes; any other
+    /// error (budget, rate limit, content policy) is real and surfaces
+    /// immediately rather than masking it behind a pointless retry.
     private func generate(kind: MediaKind, prompt: String) async throws -> (MediaGenerationResult, modelID: String) {
         let candidates = try await mediaModelCandidates(for: kind)
         guard !candidates.isEmpty else {
             throw OmniRouteError.unknown(description: "Aucun modèle disponible pour la génération (\(kind.label.lowercased())) sur ce serveur.")
         }
-        var lastNotFoundError: OmniRouteError?
+        var lastRetryableError: OmniRouteError?
         for modelID in candidates.prefix(20) {
             do {
                 return (try await performMediaGeneration(kind: kind, modelID: modelID, prompt: prompt), modelID)
             } catch let error as OmniRouteError {
-                guard case .invalidResponse(let statusCode) = error, statusCode == 404 else { throw error }
-                lastNotFoundError = error
+                switch error {
+                case .invalidResponse(404), .authenticationFailed:
+                    lastRetryableError = error
+                default:
+                    throw error
+                }
             }
         }
-        throw lastNotFoundError ?? OmniRouteError.unknown(
+        throw lastRetryableError ?? OmniRouteError.unknown(
             description: "Aucun modèle disponible pour la génération (\(kind.label.lowercased())) sur ce serveur."
         )
     }

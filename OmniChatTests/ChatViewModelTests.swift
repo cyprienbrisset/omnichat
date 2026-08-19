@@ -399,6 +399,29 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(conversation.orderedMessages.last?.mediaItem?.modelID, "working/model")
     }
 
+    func test_sendMediaPrompt_firstCandidateAuthFailed_retriesNextCandidate() async throws {
+        let context = try makeContext()
+        let conversation = Conversation(title: "Test", defaultModelID: "auto")
+        context.insert(conversation)
+        let fakeChat = FakeChatCompleting(deltas: [], error: nil)
+        let fakeMedia = FakeMediaGenerating()
+        fakeMedia.catalog = [
+            ModelInfo(id: "revoked-key/model", ownedBy: "revoked-key", type: "image"),
+            ModelInfo(id: "working/model", ownedBy: "working", type: "image"),
+        ]
+        fakeMedia.outcomesByModel = [
+            "revoked-key/model": .failure(OmniRouteError.authenticationFailed),
+            "working/model": .success(.inlineData(Data("fake".utf8), contentType: "image/png")),
+        ]
+        let viewModel = makeViewModel(conversation: conversation, client: fakeChat, context: context, mediaClient: fakeMedia)
+
+        await viewModel.sendMediaPrompt("un chat", kind: .image)
+
+        XCTAssertNil(viewModel.currentError)
+        XCTAssertEqual(fakeMedia.attemptedModelIDs, ["revoked-key/model", "working/model"])
+        XCTAssertEqual(conversation.orderedMessages.last?.mediaItem?.modelID, "working/model")
+    }
+
     func test_sendMediaPrompt_nonNotFoundError_doesNotRetryOtherCandidates() async throws {
         let context = try makeContext()
         let conversation = Conversation(title: "Test", defaultModelID: "auto")

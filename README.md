@@ -139,9 +139,22 @@ entrée isolée — sur un serveur réel, tout un bloc de 5 entrées Fireworks
 consécutives échoue de la même façon, suivi d'une entrée Gemini qui échoue
 aussi (pour une raison amont différente). OmniChat essaie donc jusqu'à 20
 modèles candidats du catalogue dans l'ordre, et ne passe au suivant que
-sur ce `404` précis — toute autre erreur (auth, quota, budget, politique de
-contenu) est réelle et remonte immédiatement, sans nouvelle tentative
-inutile qui la masquerait.
+sur ce `404` précis, ainsi qu'un `401`/`403` — toute autre erreur (quota,
+budget, politique de contenu) est réelle et remonte immédiatement, sans
+nouvelle tentative inutile qui la masquerait.
+
+**Correctif confirmé via le journal de diagnostic réel d'un utilisateur**
+(`~/Library/Application Support/OmniChat/diagnostics.json`) : la
+génération échouait malgré des fournisseurs bien configurés et un quota
+actif, parce que le retry ne couvrait que le `404` — pas le `401`/`403`.
+Si le tout premier candidat du catalogue appartient à un fournisseur dont
+la clé est invalide ou n'a pas les droits pour ce type de média
+spécifiquement (même quand d'autres fournisseurs, plus loin dans le
+catalogue, sont correctement configurés), l'app abandonnait immédiatement
+au lieu d'essayer les candidats suivants. Même logique que la résolution
+de modèle d'embedding (RAG) : un candidat listé mais cassé (`404` ou
+`401`/`403`) est ignoré, une vraie erreur d'un autre type surface
+immédiatement.
 
 Le composeur ne propose désormais un mode de génération (Image/Vidéo/
 Musique/Voix) que si le serveur a réellement au moins un modèle pour ce
