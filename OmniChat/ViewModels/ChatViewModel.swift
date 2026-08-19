@@ -13,6 +13,7 @@ final class ChatViewModel {
 
     private let client: ChatCompleting
     private let mediaClient: MediaGenerating
+    private let transcriptionClient: AudioTranscribing
     private let mediaFileStore: MediaFileStore
     private let context: ModelContext
     private let diagnosticLogger: DiagnosticLogger
@@ -33,6 +34,7 @@ final class ChatViewModel {
         conversation: Conversation,
         client: ChatCompleting,
         mediaClient: MediaGenerating,
+        transcriptionClient: AudioTranscribing,
         mediaFileStore: MediaFileStore,
         context: ModelContext,
         diagnosticLogger: DiagnosticLogger,
@@ -42,6 +44,7 @@ final class ChatViewModel {
         self.conversation = conversation
         self.client = client
         self.mediaClient = mediaClient
+        self.transcriptionClient = transcriptionClient
         self.mediaFileStore = mediaFileStore
         self.context = context
         self.diagnosticLogger = diagnosticLogger
@@ -291,6 +294,36 @@ final class ChatViewModel {
         case .speech: models = try await mediaClient.listSpeechModels()
         }
         return models.map(\.id)
+    }
+
+    /// Transcribes a local audio file into text — the composer inserts the
+    /// result into the draft rather than sending it directly, so the user
+    /// can review/edit before it becomes a real message. Same "listed but
+    /// broken" resilience as media generation: tries real candidates in
+    /// order and only moves to the next one on a confirmed "this candidate
+    /// isn't usable" shape (404/auth); any other error is real and surfaces
+    /// immediately. Doesn't touch `currentError`/persistence — this is a
+    /// one-off action outside the normal send flow, not a chat turn.
+    func transcribeAudio(fileData: Data, fileName: String) async throws -> String {
+        let candidates = try await transcriptionClient.listTranscriptionModels().map(\.id)
+        guard !candidates.isEmpty else {
+            throw OmniRouteError.unknown(description: "Aucun modèle de transcription disponible sur ce serveur.")
+        }
+        var lastRetryableError: OmniRouteError?
+        for modelID in candidates.prefix(20) {
+            do {
+                let result = try await transcriptionClient.transcribeAudio(fileData: fileData, fileName: fileName, model: modelID)
+                return result.text
+            } catch let error as OmniRouteError {
+                switch error {
+                case .invalidResponse(404), .authenticationFailed:
+                    lastRetryableError = error
+                default:
+                    throw error
+                }
+            }
+        }
+        throw lastRetryableError ?? OmniRouteError.unknown(description: "Aucun modèle de transcription disponible sur ce serveur.")
     }
 
     /// Resends the last user message without re-sending an empty draft.

@@ -27,6 +27,7 @@ struct OmniChatApp: App {
         }
         Task { await environment.refreshCatalogSummary() }
         Task { await environment.refreshAvailableMediaKinds() }
+        Task { await environment.refreshTranscriptionAvailability() }
     }
 
     var body: some Scene {

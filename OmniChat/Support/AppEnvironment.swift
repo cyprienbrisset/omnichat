@@ -34,6 +34,11 @@ final class AppEnvironment {
     /// the composer never offers a generation mode that's guaranteed to
     /// fail with "no model configured".
     private(set) var availableMediaKinds: Set<MediaKind> = []
+    /// Whether this server has at least one real speech-to-text model
+    /// configured — gates the composer's "Transcrire" action the same way
+    /// `availableMediaKinds` gates generation modes, so it never appears
+    /// only to fail with "no model configured".
+    private(set) var canTranscribeAudio = false
     /// Passages the user picked from local search (`RAGView`) to attach as
     /// context to their *next* outgoing message — one-shot, cleared by
     /// `ChatView` right after it reads them into the request.
@@ -65,6 +70,7 @@ final class AppEnvironment {
             conversation: conversation,
             client: client,
             mediaClient: client,
+            transcriptionClient: client,
             mediaFileStore: MediaFileStore(),
             context: context,
             diagnosticLogger: diagnosticLogger,
@@ -201,5 +207,15 @@ final class AppEnvironment {
         if let music, !music.isEmpty { kinds.insert(.music) }
         if let speech, !speech.isEmpty { kinds.insert(.speech) }
         availableMediaKinds = kinds
+    }
+
+    /// Same reasoning as `refreshAvailableMediaKinds` — a server can list
+    /// zero speech-to-text models, and the composer's transcribe action
+    /// should simply not appear rather than surface a guaranteed failure.
+    @MainActor
+    func refreshTranscriptionAvailability() async {
+        let client = OmniRouteClient(profile: activeProfile, credentialStore: credentialStore)
+        let models = try? await client.listTranscriptionModels()
+        canTranscribeAudio = !(models ?? []).isEmpty
     }
 }

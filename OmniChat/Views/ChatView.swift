@@ -1,5 +1,7 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
+import OmniRouteKit
 
 struct ChatView: View {
     let conversation: Conversation
@@ -10,6 +12,8 @@ struct ChatView: View {
     @State private var streamingTask: Task<Void, Never>?
     @State private var mode: ComposerMode = .text
     @State private var showingModelPicker = false
+    @State private var isTranscribing = false
+    @State private var transcriptionError: String?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -144,6 +148,13 @@ struct ChatView: View {
             if !appEnvironment.pendingAttachedContext.isEmpty {
                 attachedContextRow
             }
+            if let transcriptionError {
+                Text(transcriptionError)
+                    .font(OmniTheme.mono(9))
+                    .foregroundStyle(OmniTheme.danger)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+            }
             HStack(alignment: .bottom, spacing: 12) {
                 TextField(
                     "",
@@ -155,6 +166,17 @@ struct ChatView: View {
                 .font(OmniTheme.serif(14).italic())
                 .foregroundStyle(OmniTheme.ink)
                 .lineLimit(1...6)
+
+                if appEnvironment.canTranscribeAudio {
+                    Button {
+                        pickAndTranscribeAudio()
+                    } label: {
+                        Image(systemName: isTranscribing ? "waveform" : "mic")
+                    }
+                    .buttonStyle(.omniLink)
+                    .disabled(isTranscribing || (viewModel?.isStreaming ?? false))
+                    .help("Transcrire un fichier audio dans le brouillon")
+                }
 
                 if viewModel?.isStreaming ?? false {
                     Button("Arrêter", action: { streamingTask?.cancel() })
@@ -253,5 +275,36 @@ struct ChatView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
+    }
+
+    /// Picks a local audio file and transcribes it into the draft — the
+    /// composer's "Transcrire" action. Only presented when
+    /// `canTranscribeAudio` is true, so this never fires against a server
+    /// with zero speech-to-text models configured.
+    private func pickAndTranscribeAudio() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.mp3, .wav, .mpeg4Audio, .audio]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { await transcribe(fileURL: url) }
+        }
+    }
+
+    private func transcribe(fileURL: URL) async {
+        isTranscribing = true
+        transcriptionError = nil
+        defer { isTranscribing = false }
+        do {
+            let fileData = try Data(contentsOf: fileURL)
+            let text = try await viewModel?.transcribeAudio(fileData: fileData, fileName: fileURL.lastPathComponent)
+            guard let text, !text.isEmpty else { return }
+            draft = draft.isEmpty ? text : draft + "\n" + text
+        } catch let error as OmniRouteError {
+            transcriptionError = error.userMessage
+        } catch {
+            transcriptionError = "Impossible de lire le fichier audio : \(error.localizedDescription)"
+        }
     }
 }

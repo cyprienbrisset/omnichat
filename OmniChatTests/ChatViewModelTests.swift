@@ -125,6 +125,25 @@ private final class FakeMediaGenerating: MediaGenerating, @unchecked Sendable {
     func listSpeechModels() async throws -> [ModelInfo] { catalog }
 }
 
+private final class FakeAudioTranscribing: AudioTranscribing, @unchecked Sendable {
+    var catalog = [ModelInfo(id: "fake/transcriber", ownedBy: "fake")]
+    var outcomesByModel: [String: Result<TranscriptionResult, Error>] = [:]
+    private(set) var attemptedModelIDs: [String] = []
+
+    func listTranscriptionModels() async throws -> [ModelInfo] { catalog }
+
+    func transcribeAudio(fileData: Data, fileName: String, model: String) async throws -> TranscriptionResult {
+        attemptedModelIDs.append(model)
+        guard let outcome = outcomesByModel[model] else {
+            return TranscriptionResult(text: "fake transcript")
+        }
+        switch outcome {
+        case .success(let result): return result
+        case .failure(let error): throw error
+        }
+    }
+}
+
 @MainActor
 final class ChatViewModelTests: XCTestCase {
     private func makeSchema() -> Schema {
@@ -155,12 +174,14 @@ final class ChatViewModelTests: XCTestCase {
         client: ChatCompleting,
         context: ModelContext,
         mediaClient: MediaGenerating = FakeMediaGenerating(),
+        transcriptionClient: AudioTranscribing = FakeAudioTranscribing(),
         localTools: [LocalTool] = []
     ) -> ChatViewModel {
         ChatViewModel(
             conversation: conversation,
             client: client,
             mediaClient: mediaClient,
+            transcriptionClient: transcriptionClient,
             mediaFileStore: makeMediaFileStore(),
             context: context,
             diagnosticLogger: makeDiagnosticLogger(),
@@ -441,6 +462,82 @@ final class ChatViewModelTests: XCTestCase {
 
         XCTAssertNotNil(viewModel.currentError)
         XCTAssertEqual(fakeMedia.attemptedModelIDs, ["no-budget/model"])
+    }
+
+    func test_transcribeAudio_success_returnsRealText() async throws {
+        let context = try makeContext()
+        let conversation = Conversation(title: "Test", defaultModelID: "auto")
+        context.insert(conversation)
+        let fakeChat = FakeChatCompleting(deltas: [], error: nil)
+        let fakeTranscription = FakeAudioTranscribing()
+        fakeTranscription.outcomesByModel = ["fake/transcriber": .success(TranscriptionResult(text: "Bonjour tout le monde"))]
+        let viewModel = makeViewModel(conversation: conversation, client: fakeChat, context: context, transcriptionClient: fakeTranscription)
+
+        let text = try await viewModel.transcribeAudio(fileData: Data("audio".utf8), fileName: "memo.mp3")
+
+        XCTAssertEqual(text, "Bonjour tout le monde")
+    }
+
+    func test_transcribeAudio_firstCandidateNotFound_retriesNextCandidate() async throws {
+        let context = try makeContext()
+        let conversation = Conversation(title: "Test", defaultModelID: "auto")
+        context.insert(conversation)
+        let fakeChat = FakeChatCompleting(deltas: [], error: nil)
+        let fakeTranscription = FakeAudioTranscribing()
+        fakeTranscription.catalog = [
+            ModelInfo(id: "broken/model", ownedBy: "broken"),
+            ModelInfo(id: "working/model", ownedBy: "working"),
+        ]
+        fakeTranscription.outcomesByModel = [
+            "broken/model": .failure(OmniRouteError.invalidResponse(statusCode: 404)),
+            "working/model": .success(TranscriptionResult(text: "ça marche")),
+        ]
+        let viewModel = makeViewModel(conversation: conversation, client: fakeChat, context: context, transcriptionClient: fakeTranscription)
+
+        let text = try await viewModel.transcribeAudio(fileData: Data(), fileName: "memo.mp3")
+
+        XCTAssertEqual(text, "ça marche")
+        XCTAssertEqual(fakeTranscription.attemptedModelIDs, ["broken/model", "working/model"])
+    }
+
+    func test_transcribeAudio_nonRetryableError_surfacesImmediately() async throws {
+        let context = try makeContext()
+        let conversation = Conversation(title: "Test", defaultModelID: "auto")
+        context.insert(conversation)
+        let fakeChat = FakeChatCompleting(deltas: [], error: nil)
+        let fakeTranscription = FakeAudioTranscribing()
+        fakeTranscription.catalog = [
+            ModelInfo(id: "no-quota/model", ownedBy: "x"),
+            ModelInfo(id: "unreached/model", ownedBy: "x"),
+        ]
+        fakeTranscription.outcomesByModel = [
+            "no-quota/model": .failure(OmniRouteError.rateLimited(retryAfterSeconds: nil)),
+        ]
+        let viewModel = makeViewModel(conversation: conversation, client: fakeChat, context: context, transcriptionClient: fakeTranscription)
+
+        do {
+            _ = try await viewModel.transcribeAudio(fileData: Data(), fileName: "memo.mp3")
+            XCTFail("expected rateLimited to surface immediately")
+        } catch OmniRouteError.rateLimited {
+            XCTAssertEqual(fakeTranscription.attemptedModelIDs, ["no-quota/model"])
+        }
+    }
+
+    func test_transcribeAudio_emptyCatalog_throwsClearError() async throws {
+        let context = try makeContext()
+        let conversation = Conversation(title: "Test", defaultModelID: "auto")
+        context.insert(conversation)
+        let fakeChat = FakeChatCompleting(deltas: [], error: nil)
+        let fakeTranscription = FakeAudioTranscribing()
+        fakeTranscription.catalog = []
+        let viewModel = makeViewModel(conversation: conversation, client: fakeChat, context: context, transcriptionClient: fakeTranscription)
+
+        do {
+            _ = try await viewModel.transcribeAudio(fileData: Data(), fileName: "memo.mp3")
+            XCTFail("expected an error for an empty catalog")
+        } catch {
+            // expected — any thrown error is acceptable, the message just needs to be clear
+        }
     }
 
     func test_retryLastMessage_afterFailedMediaPrompt_retriesSameKind() async throws {

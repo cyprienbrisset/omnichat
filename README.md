@@ -26,11 +26,12 @@ compatible OpenAI.
 > juge auto ou choisi, persisté dans son propre store séparé des
 > conversations normales), retour possible au routage automatique
 > (« auto ») après sélection d'un modèle précis dans une conversation,
-> panneau Administration (fournisseurs, budgets, limites de jetons —
-> visible uniquement si la clé a les droits de gestion), menu bar +
-> fenêtre principale. RAG documentaire (import de fichiers), A2A, OCR,
-> transcription audio et gestion des combos de routage/compression ne
-> sont pas encore implémentés (voir le spec pour le périmètre complet).
+> panneau Administration à huit pages (fournisseurs & clés, santé, agents,
+> garde-fous, réseau, analytique & coûts — visible uniquement si la clé a
+> les droits de gestion), transcription audio (⌘K composer → brouillon),
+> menu bar + fenêtre principale. RAG documentaire (import de fichiers),
+> A2A, OCR et gestion des combos de routage/compression ne sont pas encore
+> implémentés (voir le spec pour le périmètre complet).
 
 ## Ce que fait OmniChat
 
@@ -233,6 +234,24 @@ Le casier propose aussi désormais une entrée « auto » fixe en tête de
 liste (le routage automatique réel, mais qui n'apparaît jamais dans
 `/v1/models` lui-même) — sans elle, une conversation dont le modèle avait
 été changé ne pouvait plus jamais revenir au routage automatique.
+
+## Transcription audio
+
+Bouton micro dans le composeur (visible uniquement si le serveur a au
+moins un modèle de transcription réel — même principe que les modes de
+génération média : jamais un bouton menant systématiquement à un échec).
+Ouvre un vrai panneau de sélection de fichier, envoie l'audio à
+`POST /v1/audio/transcriptions` (`multipart/form-data`, schéma entièrement
+documenté avec un exemple JSON réel — contrairement à la plupart des
+endpoints de gestion traités en brut ailleurs dans l'app) et insère le
+texte transcrit **dans le brouillon**, jamais envoyé directement : c'est à
+l'utilisateur de relire/corriger avant que ça devienne un vrai message.
+Les modèles de transcription sont filtrés depuis `/v1/models` par
+`type:"audio", subtype:"transcription"` (symétrique au filtre déjà utilisé
+pour la synthèse vocale, `subtype:"speech"`). Même résilience que la
+génération média : plusieurs candidats réels essayés dans l'ordre, un
+candidat listé mais cassé (`404`/`401`) est ignoré, toute autre erreur
+remonte immédiatement.
 
 ## Gestion des conversations
 
