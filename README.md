@@ -25,17 +25,23 @@ Chat multi-modèles, génération média, mémoire, MCP, RAG, comparaison et fus
 
 <table>
 <tr>
-<td width="33%">
+<td width="50%">
 <img src="docs/screenshots/chat.png" alt="OmniChat — chat" />
 <br/><sub align="center">Chat en streaming, rendu markdown natif</sub>
 </td>
-<td width="33%">
+<td width="50%">
 <img src="docs/screenshots/media.png" alt="OmniChat — galerie" />
 <br/><sub align="center">Galerie — génération média</sub>
 </td>
-<td width="33%">
+</tr>
+<tr>
+<td width="50%">
 <img src="docs/screenshots/fusion.png" alt="OmniChat — fusion" />
 <br/><sub align="center">Fusion — N modèles + synthèse par un juge</sub>
+</td>
+<td width="50%">
+<img src="docs/screenshots/onboarding.png" alt="OmniChat — connexion" />
+<br/><sub align="center">Configuration — endpoint et clé API</sub>
 </td>
 </tr>
 </table>

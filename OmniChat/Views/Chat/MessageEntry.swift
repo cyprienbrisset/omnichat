@@ -89,6 +89,24 @@ struct MessageEntry: View {
         }
     }
 
+    /// The model that actually answered — read from the same routing
+    /// telemetry as `telemetrySummary` (`X-OmniRoute-*` response headers),
+    /// never a guess: `"auto → openai/gpt-4o"` when routed automatically,
+    /// just `"openai/gpt-4o"` when a specific model was requested directly.
+    /// `nil` (not shown) when this response carries no routing telemetry.
+    private var respondingModel: String? {
+        switch (message.routingStrategy, message.routingProvider) {
+        case let (strategy?, provider?) where strategy != "single":
+            return "\(strategy) → \(provider)"
+        case (_, let provider?):
+            return provider
+        case (let strategy?, nil):
+            return strategy
+        default:
+            return nil
+        }
+    }
+
     private var responseBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
@@ -96,6 +114,11 @@ struct MessageEntry: View {
                     .fill(message.isIncomplete ? OmniTheme.warning : OmniTheme.success)
                     .frame(width: 6, height: 6)
                 OmniTheme.label("Réponse", size: 10, color: OmniTheme.inkSoft)
+                if let respondingModel {
+                    Text(respondingModel)
+                        .font(OmniTheme.mono(9, weight: .semibold))
+                        .foregroundStyle(OmniTheme.accent)
+                }
                 if let copyableText {
                     copyButton(text: copyableText)
                 }

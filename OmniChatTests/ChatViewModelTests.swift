@@ -282,7 +282,7 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(assistantMessage.routingProvider, "cerebras")
         XCTAssertEqual(assistantMessage.routingLatencyMs, 812)
         XCTAssertEqual(assistantMessage.tokensOut, 342)
-        XCTAssertEqual(assistantMessage.telemetrySummary, "cheapest → cerebras · 812 ms · $0.0012 · 128→342 tok")
+        XCTAssertEqual(assistantMessage.telemetrySummary, "812 ms · $0.0012 · 128→342 tok")
     }
 
     func test_send_whenWrappingTaskCancelled_marksAssistantMessageIncompleteWithoutError() async throws {
